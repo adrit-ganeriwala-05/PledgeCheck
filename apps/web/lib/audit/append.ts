@@ -6,6 +6,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/types";
 
 import { scheduleAutoAnchor } from "./auto-anchor";
 import { canonicalJson } from "./canonical";
@@ -99,23 +100,6 @@ export function validateAuditInput(input: AppendAuditEventInput): {
 
 type RpcError = { code?: string; message?: string } | null;
 
-// audit_append is defined in db/audit.sql and not yet in the generated Database types.
-type AuditAppendRpc = {
-  rpc(
-    fn: "audit_append",
-    args: {
-      p_seq: number;
-      p_prev_hash: string;
-      p_hash: string;
-      p_actor: string;
-      p_action: string;
-      p_ref_id: string | null;
-      p_payload: Record<string, unknown>;
-      p_created_at: string;
-    },
-  ): PromiseLike<{ data: unknown; error: RpcError }>;
-};
-
 function isChainConflict(error: RpcError): boolean {
   return !!error && (error.code === "40001" || /audit_chain_conflict/.test(error.message ?? ""));
 }
@@ -145,14 +129,16 @@ export async function appendAuditEvent(input: AppendAuditEventInput): Promise<Ap
     const createdAt = normalizeTimestamp(new Date());
     const hash = computeHash(prevHash, { seq, actor, action, ref_id: refId, payload, created_at: createdAt });
 
-    const { error } = await (admin as unknown as AuditAppendRpc).rpc("audit_append", {
+    const { error } = await admin.rpc("audit_append", {
       p_seq: seq,
       p_prev_hash: prevHash,
       p_hash: hash,
       p_actor: actor,
       p_action: action,
-      p_ref_id: refId,
-      p_payload: payload,
+      // Generated RPC argument types are never nullable, but p_ref_id uuid accepts null.
+      p_ref_id: refId as string,
+      // validateAuditInput already proved the payload is canonical JSON.
+      p_payload: payload as Json,
       p_created_at: createdAt,
     });
 

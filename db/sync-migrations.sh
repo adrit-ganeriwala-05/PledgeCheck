@@ -9,6 +9,7 @@ pairs=(
   "db/schema.sql:supabase/migrations/20260926000001_schema.sql"
   "db/policies.sql:supabase/migrations/20260926000002_policies.sql"
   "db/functions.sql:supabase/migrations/20260926000003_functions.sql"
+  "db/audit.sql:supabase/migrations/20260926000004_audit.sql"
 )
 
 mkdir -p supabase/migrations

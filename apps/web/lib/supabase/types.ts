@@ -366,6 +366,19 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      audit_append: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_created_at: string;
+          p_hash: string;
+          p_payload: Json;
+          p_prev_hash: string;
+          p_ref_id: string;
+          p_seq: number;
+        };
+        Returns: number;
+      };
       submit_review: {
         Args: {
           p_clinician_id: string;
