@@ -5,14 +5,21 @@
 // Live camera only: there is no file input anywhere on this page, and the
 // photo is read straight off a MediaStream frame. That is fraud check 2.
 // It needs HTTPS, so test it on a Vercel preview, never on localhost.
+//
+// The challenge code is not on the page until the patient taps Start: that calls
+// POST /api/t/:token/start, which begins the session (SESSION_MINUTES) and returns the
+// code and deadline. Reopening the link mid-session calls it again and gets the same
+// code back. A countdown shows the time left; at zero the session is over.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clipPath,
+  LINK_PROBLEM_TEXT,
   stepText,
   UI_TEXT,
   type CaptureStep,
   type Language,
+  type LinkProblemState,
 } from "@/lib/voice";
 
 /** Longest edge of the photo we send. Keeps the upload near 1 MB. */
@@ -29,14 +36,28 @@ const PHASE_STEP: Partial<Record<Phase, CaptureStep>> = {
   sent: "sent",
 };
 
+/** "mm:ss", never negative. */
+export function formatRemaining(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+const START_FAILURES: LinkProblemState[] = ["invalid", "link_expired", "session_expired", "submitted"];
+
+/** Phases that end when the session runs out. */
+const SESSION_PHASES: Phase[] = ["code", "camera", "review"];
+
 export function CaptureFlow({
   token,
-  challengeCode,
   language,
+  resumed = false,
 }: {
   token: string;
-  challengeCode: string;
   language: Language;
+  /** The session was already started (the patient reopened the link). */
+  resumed?: boolean;
 }) {
   const t = UI_TEXT[language];
   const [phase, setPhase] = useState<Phase>("intro");
@@ -45,6 +66,11 @@ export function CaptureFlow({
   const [failure, setFailure] = useState<string | null>(null);
   // A dead link cannot be retried; only a transient failure can.
   const [terminal, setTerminal] = useState(false);
+  // What "Try again" repeats: starting the session, or sending the photo.
+  const [failedStep, setFailedStep] = useState<"start" | "send">("send");
+  const [session, setSession] = useState<{ code: string; endsAt: number } | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -69,6 +95,61 @@ export function CaptureFlow({
   }, []);
 
   useEffect(() => stopCamera, [stopCamera]);
+
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Countdown. The server enforces the deadline; this only tells the patient, and ends
+  // the flow at zero unless the photo is already on its way.
+  useEffect(() => {
+    if (!session) return;
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= session.endsAt && SESSION_PHASES.includes(phaseRef.current)) {
+        clearInterval(timer);
+        stopCamera();
+        setFailure(LINK_PROBLEM_TEXT[language].session_expired);
+        setTerminal(true);
+        setPhase("failed");
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [session, language, stopCamera]);
+
+  const startSession = useCallback(async () => {
+    setStarting(true);
+    setFailure(null);
+    try {
+      const response = await fetch(`/api/t/${encodeURIComponent(token)}/start`, { method: "POST" });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        state?: string;
+        challengeCode?: string;
+        sessionEndsAt?: string;
+      };
+      if (!response.ok || !data.ok || !data.challengeCode || !data.sessionEndsAt) {
+        const state = START_FAILURES.find((s) => s === data.state) ?? "error";
+        setFailure(LINK_PROBLEM_TEXT[language][state]);
+        setTerminal(state !== "error");
+        setFailedStep("start");
+        setPhase("failed");
+        return;
+      }
+      setNow(Date.now());
+      setSession({ code: data.challengeCode, endsAt: Date.parse(data.sessionEndsAt) });
+      setPhase("code");
+    } catch {
+      setFailure(t.startFailed);
+      setTerminal(false);
+      setFailedStep("start");
+      setPhase("failed");
+    } finally {
+      setStarting(false);
+    }
+  }, [token, language, t.startFailed]);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
@@ -136,6 +217,7 @@ export function CaptureFlow({
       if (!response.ok || data.received === false) {
         setFailure(patientMessage(data.reason, language));
         setTerminal(TERMINAL_REASONS.includes(data.reason ?? ""));
+        setFailedStep("send");
         setPhase("failed");
         return;
       }
@@ -147,6 +229,7 @@ export function CaptureFlow({
           : "Could not send. Check your connection.",
       );
       setTerminal(false);
+      setFailedStep("send");
       setPhase("failed");
     }
   }, [photo, token, language]);
@@ -166,10 +249,15 @@ export function CaptureFlow({
         <p className="text-lg leading-relaxed">{stepText(language, PHASE_STEP[phase] ?? "welcome")}</p>
       )}
 
-      {(phase === "code" || phase === "camera" || phase === "review") && (
+      {session && (phase === "code" || phase === "camera" || phase === "review") && (
         <div className="rounded-xl border border-[var(--pc-line)] bg-white p-4 text-center">
           <p className="text-sm text-[var(--pc-muted)]">{t.codeLabel}</p>
-          <p className="mt-1 font-mono text-5xl font-bold tracking-[0.3em]">{challengeCode}</p>
+          <p className="mt-1 font-mono text-5xl font-bold tracking-[0.3em]" data-testid="challenge-code">
+            {session.code}
+          </p>
+          <p className="mt-2 text-sm text-[var(--pc-muted)]" role="timer" aria-live="off">
+            {t.timeLeft}: <span className="font-mono">{formatRemaining(session.endsAt - now)}</span>
+          </p>
         </div>
       )}
 
@@ -211,7 +299,9 @@ export function CaptureFlow({
 
       <div className="sticky bottom-0 flex flex-col gap-3 bg-[#f8fafc] pt-2 pb-2">
         {phase === "intro" && (
-          <Button onClick={() => setPhase("code")}>{t.start}</Button>
+          <Button onClick={startSession} disabled={starting}>
+            {starting ? t.starting : resumed ? t.resume : t.start}
+          </Button>
         )}
         {phase === "code" && <Button onClick={startCamera}>{t.openCamera}</Button>}
         {phase === "camera" && <Button onClick={takePhoto}>{t.takePhoto}</Button>}
@@ -229,7 +319,7 @@ export function CaptureFlow({
           </Button>
         )}
         {phase === "failed" && !terminal && (
-          <Button onClick={send} variant="secondary">
+          <Button onClick={failedStep === "start" ? startSession : send} variant="secondary">
             {t.tryAgain}
           </Button>
         )}
