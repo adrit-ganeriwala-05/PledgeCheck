@@ -1,0 +1,7 @@
+packages:
+  - apps/web
+# apps/analyze is a standalone Python project and is not part of the JS workspace.
+
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
