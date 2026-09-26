@@ -368,6 +368,7 @@ export type Database = {
     Functions: {
       submit_review: {
         Args: {
+          p_clinician_id: string;
           p_decision: string;
           p_reason: string;
           p_submission_id: string;

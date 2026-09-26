@@ -1,9 +1,14 @@
 // POST /api/reviews — a prescriber approves or rejects one submission.
 // Owner: Adrit. Contract: { submissionId, decision, reason? } → 200 { status, window }.
 //
-// Order: validate → authorize → (approve) get the window from the rules engine → record
-// the decision atomically via public.submit_review (user-scoped, so RLS and the function's
-// own checks apply) → audit event → delete the photo. This route does no date math.
+// Order: validate → authorize (session, prescriber role, submission visible under RLS) →
+// (approve) get the window from the rules engine → record the decision atomically via
+// public.submit_review → audit event → delete the photo. This route does no date math.
+//
+// submit_review is executable by the service role only, so this route is the one way to
+// record a review: a signed-in browser cannot skip the rules engine, the audit event or
+// photo deletion by calling the database directly. The function re-checks that the
+// clinician id passed here is a prescriber in the submission's practice.
 import { NextResponse } from "next/server";
 
 import { getClinician } from "@/lib/clinic/auth";
@@ -72,7 +77,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc("submit_review", {
+  const { data: rpcData, error: rpcError } = await createAdminClient().rpc("submit_review", {
+    p_clinician_id: clinicianId,
     p_submission_id: submissionId,
     p_decision: decision,
     // The generated type marks p_reason non-null, but the SQL function accepts null.
@@ -106,7 +112,7 @@ export async function POST(request: Request) {
     console.error("[reviews] AUDIT EVENT NOT WRITTEN — review is recorded but missing from the audit log", {
       submissionId,
       decision,
-      reason: err instanceof Error ? err.message : "unknown",
+      cause: err instanceof Error ? err.message : "unknown",
     });
   }
 

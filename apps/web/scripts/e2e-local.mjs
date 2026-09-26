@@ -163,4 +163,24 @@ await check("queue: reviewed card is gone", async () => {
   assert.ok(!body.cards.some((c) => c.submissionId === SUB.northDisagree));
 });
 
+// --- the browser cannot bypass the route ----------------------------------------
+await check("bypass: a signed-in prescriber cannot call submit_review or insert reviews directly", async () => {
+  const direct = createClient(SUPABASE_URL, status.ANON_KEY, { auth: { persistSession: false } });
+  const { error: signInError } = await direct.auth.signInWithPassword({ email: "prescriber1@example.test", password: PASSWORD });
+  if (signInError) throw signInError;
+  const rpc = await direct.rpc("submit_review", {
+    p_clinician_id: "11111111-0000-0000-0000-000000000001",
+    p_submission_id: SUB.northReady,
+    p_decision: "approved",
+    p_reason: null,
+    p_window: { opens_at: "2026-09-26T00:00:00Z", closes_at: "2027-09-26T00:00:00Z" },
+  });
+  assert.equal(rpc.error?.code, "42501");
+  const insert = await direct
+    .from("reviews")
+    .insert({ submission_id: SUB.northReady, clinician_id: "11111111-0000-0000-0000-000000000001", decision: "approved" });
+  assert.equal(insert.error?.code, "42501");
+  assert.equal((await submission(SUB.northReady)).status, "ready_for_review");
+});
+
 console.log(`\n${passed} checks passed`);

@@ -97,17 +97,11 @@ select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('photos', 'aaaaaaaa-0000-0000-0000-000000000000/x.jpg')$$,
   '42501', null, 'client cannot upload photos');
 select throws_ok(
-  $$insert into public.reviews (submission_id, clinician_id, decision) values ('b3000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000001', 'approved')$$,
-  '42501', null, 'prescriber cannot review another practice''s submission');
-select throws_ok(
-  $$insert into public.reviews (submission_id, clinician_id, decision) values ('a3000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000002', 'approved')$$,
-  '42501', null, 'prescriber cannot insert a review on behalf of someone else');
-select lives_ok(
   $$insert into public.reviews (submission_id, clinician_id, decision) values ('a3000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000001', 'approved')$$,
-  'prescriber can insert one review');
+  '42501', null, 'prescriber cannot insert a review directly (only via POST /api/reviews)');
 select throws_ok(
-  $$insert into public.reviews (submission_id, clinician_id, decision) values ('a3000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000001', 'rejected')$$,
-  '23505', null, 'second review on the same submission fails the unique constraint');
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000000-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'prescriber cannot call submit_review directly');
 select throws_ok($$update public.reviews set decision = 'rejected'$$, '42501', null, 'client cannot update reviews');
 select throws_ok($$delete from public.reviews$$, '42501', null, 'client cannot delete reviews');
 select throws_ok(
@@ -115,15 +109,32 @@ select throws_ok(
   '42501', null, 'client cannot insert audit_events');
 
 -- ---------------------------------------------------------------------------
--- Staff cannot review
+-- Staff: read-only, and no privilege escalation
 -- ---------------------------------------------------------------------------
 reset role;
-delete from public.reviews where submission_id = 'a3000000-0000-0000-0000-000000000000';
 select pg_temp.act_as('a0000000-0000-0000-0000-000000000002');
 select is((select count(*) from public.patients), 1::bigint, 'staff can read own practice patients');
 select throws_ok(
   $$insert into public.reviews (submission_id, clinician_id, decision) values ('a3000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000002', 'approved')$$,
   '42501', null, 'staff cannot insert a review');
+select throws_ok(
+  $$update public.clinicians set role = 'prescriber' where id = 'a0000000-0000-0000-0000-000000000002'$$,
+  '42501', null, 'staff cannot promote themselves to prescriber');
+select throws_ok(
+  $$update public.clinicians set practice_id = 'bbbbbbbb-0000-0000-0000-000000000000' where id = 'a0000000-0000-0000-0000-000000000002'$$,
+  '42501', null, 'staff cannot move themselves to another practice');
+select throws_ok(
+  $$insert into public.clinicians (id, practice_id, role, display_name) values ('c0000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000000', 'prescriber', 'x')$$,
+  '42501', null, 'client cannot create clinicians');
+select throws_ok(
+  $$update public.patients set home_testing_allowed = true$$,
+  '42501', null, 'client cannot change patients');
+select throws_ok(
+  $$update public.practices set name = 'x'$$,
+  '42501', null, 'client cannot change practices');
+select throws_ok(
+  $$update public.test_requests set used_at = null$$,
+  '42501', null, 'client cannot change test_requests');
 
 -- ---------------------------------------------------------------------------
 -- Authenticated user without a clinicians row sees nothing

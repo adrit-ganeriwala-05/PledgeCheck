@@ -4,8 +4,9 @@
 -- Model:
 --   * A signed-in user sees rows only for the practice of their `clinicians` row.
 --   * A signed-in user with no `clinicians` row (e.g. a future drug-maker login) sees nothing.
---   * Browser clients never insert/update/delete, except prescribers inserting one review.
---     All other writes go through server routes using the service role, or the review RPC.
+--   * Browser clients never insert, update or delete. Writes go through server routes
+--     using the service role; reviews only through POST /api/reviews and the
+--     server-only public.submit_review function (db/functions.sql).
 
 -- ---------------------------------------------------------------------------
 -- Helper functions
@@ -56,9 +57,6 @@ grant select on
   public.practices, public.clinicians, public.patients, public.test_requests,
   public.submissions, public.reviews, public.windows, public.audit_events, public.anchors
 to authenticated;
-
--- The only client-side write: a prescriber recording a review. No UPDATE or DELETE.
-grant insert on public.reviews to authenticated;
 
 revoke all on sequence public.audit_events_seq_seq from anon, authenticated;
 
@@ -116,21 +114,6 @@ create policy reviews_select on public.reviews
     where s.id = reviews.submission_id
       and p.practice_id = app.current_practice_id()
   ));
-
-create policy reviews_insert_prescriber on public.reviews
-  for insert to authenticated
-  with check (
-    app.is_prescriber()
-    and clinician_id = auth.uid()
-    and exists (
-      select 1
-      from public.submissions s
-      join public.test_requests r on r.id = s.request_id
-      join public.patients p on p.id = r.patient_id
-      where s.id = reviews.submission_id
-        and p.practice_id = app.current_practice_id()
-    )
-  );
 
 create policy windows_select on public.windows
   for select to authenticated

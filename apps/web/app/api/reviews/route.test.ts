@@ -39,6 +39,7 @@ type Setup = {
 function setup(opts: Setup = {}) {
   const userId = opts.userId === undefined ? RX : opts.userId;
   const role = opts.role === undefined ? "prescriber" : opts.role;
+  const rpc = opts.rpc ?? { data: { status: "approved", window: { opens_at: WINDOW.opensAt, closes_at: WINDOW.closesAt, is_first_rx: false } }, error: null };
   const user = mockSupabase({
     user: userId ? { id: userId } : null,
     tables: {
@@ -51,9 +52,9 @@ function setup(opts: Setup = {}) {
         error: null,
       },
     },
-    rpc: opts.rpc ?? { data: { status: "approved", window: { opens_at: WINDOW.opensAt, closes_at: WINDOW.closesAt, is_first_rx: false } }, error: null },
   });
   const admin = mockSupabase({
+    rpc,
     tables: { submissions: { data: null, error: opts.adminUpdateError ?? null } },
     storage: { remove: opts.remove ?? { data: [], error: null } },
   });
@@ -91,11 +92,11 @@ describe("POST /api/reviews — auth", () => {
   });
 
   it("403 for staff", async () => {
-    const { user } = setup({ userId: STAFF, role: "staff" });
+    const { admin } = setup({ userId: STAFF, role: "staff" });
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "prescriber_only" });
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -116,18 +117,18 @@ describe("POST /api/reviews — validation", () => {
   });
 
   it("400 when rejecting without a reason (blank counts as missing)", async () => {
-    const { user } = setup();
+    const { admin } = setup();
     for (const body of [{ submissionId: SUB, decision: "rejected" }, { submissionId: SUB, decision: "rejected", reason: "   " }]) {
       const res = await POST(request(body));
       expect(res.status).toBe(400);
     }
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
   });
 });
 
 describe("POST /api/reviews — approve", () => {
   it("200 approved; window comes from the adapter with approvedAt and is passed to the RPC", async () => {
-    const { user } = setup();
+    const { admin } = setup();
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "approved", window: { opensAt: WINDOW.opensAt, closesAt: WINDOW.closesAt } });
@@ -137,7 +138,8 @@ describe("POST /api/reviews — approve", () => {
     expect(input).toMatchObject({ patientId: PATIENT, submissionId: SUB });
     expect(new Date(input.approvedAt).toISOString()).toBe(input.approvedAt);
 
-    expect(user.client.rpc).toHaveBeenCalledWith("submit_review", {
+    expect(admin.client.rpc).toHaveBeenCalledWith("submit_review", {
+      p_clinician_id: RX,
       p_submission_id: SUB,
       p_decision: "approved",
       p_reason: null,
@@ -151,23 +153,30 @@ describe("POST /api/reviews — approve", () => {
     });
   });
 
-  it("503 and nothing written when the window logic is unavailable", async () => {
+  it("records the decision only through the server-side RPC, never the user's client", async () => {
     const { user, admin } = setup();
+    await POST(request({ submissionId: SUB, decision: "approved" }));
+    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("503 and nothing written when the window logic is unavailable", async () => {
+    const { admin } = setup();
     mocks.openApprovalWindow.mockRejectedValue(new IntegrationUnavailableError("window"));
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "window_logic_unavailable" });
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
     expect(mocks.append).not.toHaveBeenCalled();
     expect(admin.remove).not.toHaveBeenCalled();
   });
 
   it("500 and nothing written when the window logic throws", async () => {
-    const { user } = setup();
+    const { admin } = setup();
     mocks.openApprovalWindow.mockRejectedValue(new Error("boom"));
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(500);
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
   });
 
   it("route source contains no date math", () => {
@@ -178,12 +187,12 @@ describe("POST /api/reviews — approve", () => {
 
 describe("POST /api/reviews — reject", () => {
   it("200 rejected with a reason; window adapter not called", async () => {
-    const { user } = setup({ rpc: { data: { status: "rejected", window: null }, error: null } });
+    const { admin } = setup({ rpc: { data: { status: "rejected", window: null }, error: null } });
     const res = await POST(request({ submissionId: SUB, decision: "rejected", reason: "  Test line unclear  " }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "rejected", window: null });
     expect(mocks.openApprovalWindow).not.toHaveBeenCalled();
-    expect(user.client.rpc).toHaveBeenCalledWith("submit_review", expect.objectContaining({
+    expect(admin.client.rpc).toHaveBeenCalledWith("submit_review", expect.objectContaining({
       p_decision: "rejected", p_reason: "Test line unclear", p_window: null,
     }));
     expect(mocks.append).toHaveBeenCalledWith(expect.objectContaining({ action: "review.rejected" }));
@@ -192,18 +201,18 @@ describe("POST /api/reviews — reject", () => {
 
 describe("POST /api/reviews — conflicts and lookups", () => {
   it("404 for an unknown or other-practice submission (RLS hides it)", async () => {
-    const { user } = setup({ submission: null });
+    const { admin } = setup({ submission: null });
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(404);
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
   });
 
   it("409 when the submission is not reviewable", async () => {
-    const { user } = setup({ submission: { id: SUB, status: "approved", photo_path: null, test_requests: { patient_id: PATIENT } } });
+    const { admin } = setup({ submission: { id: SUB, status: "approved", photo_path: null, test_requests: { patient_id: PATIENT } } });
     const res = await POST(request({ submissionId: SUB, decision: "approved" }));
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "not_reviewable" });
-    expect(user.client.rpc).not.toHaveBeenCalled();
+    expect(admin.client.rpc).not.toHaveBeenCalled();
   });
 
   it.each([

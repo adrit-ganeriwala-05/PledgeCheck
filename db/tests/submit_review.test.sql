@@ -47,50 +47,59 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- Authorization
+-- Only the server (service_role) may execute submit_review
 -- ---------------------------------------------------------------------------
 set local role anon;
 select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
   '42501', null, 'anon cannot execute submit_review');
 reset role;
 
-select pg_temp.act_as('a0000000-0000-0000-0000-000000000002');
-select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
-  '42501', null, 'staff cannot review');
-reset role;
-
-select pg_temp.act_as('c0000000-0000-0000-0000-000000000001');
-select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
-  '42501', null, 'user without clinicians row cannot review');
-reset role;
-
-select pg_temp.act_as('b0000000-0000-0000-0000-000000000001');
-select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
-  '42501', null, 'prescriber of another practice cannot review');
-reset role;
-
--- ---------------------------------------------------------------------------
--- Prescriber A
--- ---------------------------------------------------------------------------
 select pg_temp.act_as('a0000000-0000-0000-0000-000000000001');
-
 select throws_ok(
-  $$select public.submit_review('ffffffff-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'a signed-in prescriber cannot execute submit_review directly');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- The function re-checks the clinician id the route passes in
+-- ---------------------------------------------------------------------------
+set local role service_role;
+select throws_ok(
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000002', 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'staff cannot review');
+select throws_ok(
+  $$select public.submit_review('c0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'user without clinicians row cannot review');
+select throws_ok(
+  $$select public.submit_review('b0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'prescriber of another practice cannot review');
+select throws_ok(
+  $$select public.submit_review(null, 'a3000001-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  '42501', null, 'missing clinician id cannot review');
+
+-- ---------------------------------------------------------------------------
+-- Prescriber A (through the server)
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'ffffffff-0000-0000-0000-000000000000', 'approved', null, null)$$,
   'P0002', null, 'unknown submission raises P0002');
 select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'maybe', null, null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'maybe', null, null)$$,
   '22023', null, 'invalid decision raises 22023');
 select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'approved', null, '{"opens_at": "2026-09-26T15:00:00Z"}')$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, '{"opens_at": "2026-09-26T15:00:00Z"}')$$,
   '22023', null, 'window without closes_at raises 22023');
+select throws_ok(
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, '{"opens_at": "2026-10-03T15:00:00Z", "closes_at": "2026-09-26T15:00:00Z"}')$$,
+  '22023', null, 'window closing before it opens raises 22023');
+select throws_ok(
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null, '{"opens_at": "2026-09-26T15:00:00Z", "closes_at": "2026-09-26T15:00:00Z"}')$$,
+  '22023', null, 'zero-length window raises 22023');
 
 select is(
   public.submit_review(
-    'a3000001-0000-0000-0000-000000000000', 'approved', null,
+    'a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'approved', null,
     '{"opens_at": "2026-09-26T15:00:00Z", "closes_at": "2026-10-03T15:00:00Z", "is_first_rx": true}'
   ),
   jsonb_build_object('status', 'approved', 'window', jsonb_build_object(
@@ -100,26 +109,26 @@ select is(
   'approve with window returns status and window');
 
 select is(
-  public.submit_review('a3000002-0000-0000-0000-000000000000', 'approved', null, null),
+  public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000002-0000-0000-0000-000000000000', 'approved', null, null),
   '{"status": "approved", "window": null}'::jsonb,
   'approve without window returns window null');
 
 select is(
   public.submit_review(
-    'a3000003-0000-0000-0000-000000000000', 'rejected', 'Test line unclear',
+    'a0000000-0000-0000-0000-000000000001', 'a3000003-0000-0000-0000-000000000000', 'rejected', 'Test line unclear',
     '{"opens_at": "2026-09-26T15:00:00Z", "closes_at": "2026-10-03T15:00:00Z"}'
   ),
   '{"status": "rejected", "window": null}'::jsonb,
   'reject ignores any window');
 
 select throws_ok(
-  $$select public.submit_review('a3000001-0000-0000-0000-000000000000', 'rejected', 'x', null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000001-0000-0000-0000-000000000000', 'rejected', 'x', null)$$,
   'PC409', null, 'already-decided submission raises PC409');
 select throws_ok(
-  $$select public.submit_review('a3000004-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000004-0000-0000-0000-000000000000', 'approved', null, null)$$,
   'PC409', null, 'awaiting_photo submission raises PC409');
 select throws_ok(
-  $$select public.submit_review('a3000005-0000-0000-0000-000000000000', 'approved', null, null)$$,
+  $$select public.submit_review('a0000000-0000-0000-0000-000000000001', 'a3000005-0000-0000-0000-000000000000', 'approved', null, null)$$,
   '23505', null, 'duplicate review raises 23505');
 
 reset role;
