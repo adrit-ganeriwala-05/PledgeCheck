@@ -1,82 +1,27 @@
-// One-time link tokens: hashing and validation.
-//
-// Owner: Nihalika (ticket N1). Written by Labib at 4 AM so the submission
-// pipeline (L4) could be finished end to end before N1 landed. Replace freely;
-// the pipeline only needs `hashToken` and `consumeRequest` to keep their shape.
+// One-time link tokens. The plain token appears once, in the link given to the patient;
+// only its SHA-256 hash is stored (test_requests.token_hash).
+import "server-only";
 
-import { createHash, randomBytes } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
-/** Tokens are stored only as a SHA-256 hash; the plain token is shown once. */
+export { generateChallengeCode as newChallengeCode } from "./code";
+
+/** 32 random bytes, base64url (43 characters). Never stored. */
+export function generateToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/** Lowercase hex SHA-256 of the token. The only form that reaches the database. */
 export function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-export function newToken(): string {
-  return randomBytes(24).toString("base64url");
+/** Constant-time comparison of two hex hashes. */
+export function hashesEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-/** The 4-character code the patient writes on the test. No lookalike glyphs. */
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-export function newChallengeCode(): string {
-  const bytes = randomBytes(4);
-  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
-}
-
-export type TokenFailure = "not_found" | "expired" | "already_used";
-
-export interface TestRequestRow {
-  id: string;
-  patient_id: string;
-  challenge_code: string;
-  setting: "home" | "clinic";
-  expires_at: string;
-  used_at: string | null;
-}
-
-export type TokenCheck =
-  | { ok: true; request: TestRequestRow }
-  | { ok: false; failure: TokenFailure };
-
-/** Look the token up and reject a reused, expired or unknown one. */
-export async function checkToken(
-  db: SupabaseClient,
-  token: string,
-  now: Date,
-): Promise<TokenCheck> {
-  const { data, error } = await db
-    .from("test_requests")
-    .select("id, patient_id, challenge_code, setting, expires_at, used_at")
-    .eq("token_hash", hashToken(token))
-    .maybeSingle();
-
-  if (error || !data) return { ok: false, failure: "not_found" };
-
-  const request = data as TestRequestRow;
-  if (request.used_at) return { ok: false, failure: "already_used" };
-  if (new Date(request.expires_at).getTime() <= now.getTime()) {
-    return { ok: false, failure: "expired" };
-  }
-
-  return { ok: true, request };
-}
-
-/**
- * Mark the link used. Conditional on used_at still being null, so two phones
- * submitting at once cannot both win.
- */
-export async function consumeRequest(
-  db: SupabaseClient,
-  requestId: string,
-  now: Date,
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("test_requests")
-    .update({ used_at: now.toISOString() })
-    .eq("id", requestId)
-    .is("used_at", null)
-    .select("id");
-
-  return !error && (data?.length ?? 0) > 0;
-}
+// Name kept from the interim pipeline version (labib/p0-integrated).
+export const newToken = generateToken;
