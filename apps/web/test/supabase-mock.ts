@@ -28,7 +28,7 @@ export function mockSupabase(config: MockConfig) {
       return typeof entry === "function" ? entry(calls) : entry;
     };
     const builder: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "in", "order", "update", "insert", "delete", "is", "not"]) {
+    for (const method of ["select", "eq", "in", "order", "update", "insert", "delete", "is", "not", "returns"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ method, args });
         return builder;
