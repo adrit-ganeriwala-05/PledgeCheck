@@ -195,9 +195,9 @@ describe("POST /api/submissions — accepted photo", () => {
     expect(JSON.stringify(event)).not.toContain("K7Q2");
   });
 
-  it("accepts a code read with different case and surrounding spaces", async () => {
+  it("accepts a code read with different case and spacing", async () => {
     admin();
-    mocks.readTestPhoto.mockResolvedValue({ result: "negative", confidence: 0.95, code_read: " k7q2 " });
+    mocks.readTestPhoto.mockResolvedValue({ result: "negative", confidence: 0.95, code_read: " k7 q2 " });
     expect(await (await upload()).json()).toMatchObject({ received: true });
     expect(mocks.recordFraudRejection).not.toHaveBeenCalled();
   });
