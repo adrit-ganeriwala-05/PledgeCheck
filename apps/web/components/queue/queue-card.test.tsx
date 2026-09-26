@@ -67,6 +67,13 @@ describe("QueueCard: reads and permissions", () => {
 });
 
 describe("closerReviewReasons", () => {
+  it("treats exactly 0.85 as not low (the PRD passes reads at 0.85 or more)", () => {
+    const reasons = closerReviewReasons(
+      makeCard({ status: "needs_review", grok: { result: "negative", code: "K7Q2", confidence: 0.85, codeMatches: true }, opencv: { result: "negative", confidence: 0.84 } }),
+    );
+    expect(reasons).toEqual(["Low OpenCV confidence (84%)"]);
+  });
+
   it("lists low Grok confidence with its value and a code mismatch", () => {
     const reasons = closerReviewReasons(
       makeCard({ status: "needs_review", grok: { result: "negative", code: "X0X0", confidence: 0.62, codeMatches: false } }),

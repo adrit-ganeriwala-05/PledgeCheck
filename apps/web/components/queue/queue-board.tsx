@@ -16,6 +16,28 @@ import type { ReviewOutcome } from "./review-actions";
 
 export const REFRESH_INTERVAL_MS = 20_000;
 export const COLLAPSE_MS = 2_500;
+// Signed photo URLs last 5 minutes and change on every fetch. Reuse a card's URL for up
+// to 4 minutes so refreshes don't reload the photo (or an open zoom dialog) every 20s.
+export const PHOTO_URL_REUSE_MS = 4 * 60 * 1000;
+
+type PhotoUrlCache = Map<string, { url: string; fetchedAt: number }>;
+
+export function stabilizePhotoUrls(cards: QueueCardData[], cache: PhotoUrlCache, now: number): QueueCardData[] {
+  const next: PhotoUrlCache = new Map();
+  const result = cards.map((card) => {
+    if (!card.photoUrl) return card;
+    const previous = cache.get(card.submissionId);
+    if (previous && now - previous.fetchedAt < PHOTO_URL_REUSE_MS) {
+      next.set(card.submissionId, previous);
+      return { ...card, photoUrl: previous.url };
+    }
+    next.set(card.submissionId, { url: card.photoUrl, fetchedAt: now });
+    return card;
+  });
+  cache.clear();
+  for (const [id, entry] of next) cache.set(id, entry);
+  return result;
+}
 
 const FOLLOW_UP_STEP: Record<string, string> = {
   audit_failed: "the audit log entry",
@@ -53,6 +75,7 @@ export function QueueBoard() {
   const [resolved, setResolved] = useState<Record<string, Resolution>>({});
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const inFlight = useRef(false);
+  const photoUrls = useRef<PhotoUrlCache>(new Map());
 
   const load = useCallback(async (mode: "initial" | "background") => {
     if (inFlight.current) return;
@@ -68,7 +91,11 @@ export function QueueBoard() {
         return;
       }
       const body = (await res.json()) as QueueResponse;
-      setState({ kind: "ready", cards: body.cards, refreshFailed: false });
+      setState({
+        kind: "ready",
+        cards: stabilizePhotoUrls(body.cards, photoUrls.current, Date.now()),
+        refreshFailed: false,
+      });
     } catch {
       setState((s) => (mode === "background" && s.kind === "ready" ? { ...s, refreshFailed: true } : { kind: "error", status: 0 }));
     } finally {

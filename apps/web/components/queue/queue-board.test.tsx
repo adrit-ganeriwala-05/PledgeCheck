@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueueCard } from "@/lib/clinic/queue";
 import { makeCard } from "@/test/queue-card-fixture";
 
-import { COLLAPSE_MS, QueueBoard, REFRESH_INTERVAL_MS } from "./queue-board";
+import { COLLAPSE_MS, PHOTO_URL_REUSE_MS, QueueBoard, REFRESH_INTERVAL_MS, stabilizePhotoUrls } from "./queue-board";
 
 type Reply = { status: number; body: unknown } | "network" | Promise<{ status: number; body: unknown }>;
 
@@ -180,5 +180,33 @@ describe("QueueBoard refresh", () => {
     });
     expect(screen.getByText("PT-1042")).toBeInTheDocument();
     expect(screen.getByText(/Couldn.t refresh just now/)).toBeInTheDocument();
+  });
+});
+
+describe("photo URL stability", () => {
+  const withPhoto = (url: string) => makeCard({ photoUrl: url });
+
+  it("keeps the same photo URL across refreshes within 4 minutes, then takes the new one", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    queueReplies = [cards(withPhoto("https://signed/1")), cards(withPhoto("https://signed/2")), cards(withPhoto("https://signed/3"))];
+    render(<QueueBoard />);
+    const img = await screen.findByAltText("Test photo submitted by PT-1042");
+    expect(img).toHaveAttribute("src", "https://signed/1");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS);
+    });
+    expect(queueCalls()).toBe(2);
+    expect(screen.getByAltText("Test photo submitted by PT-1042")).toHaveAttribute("src", "https://signed/1");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PHOTO_URL_REUSE_MS);
+    });
+    expect(screen.getByAltText("Test photo submitted by PT-1042")).toHaveAttribute("src", "https://signed/3");
+  });
+
+  it("stabilizePhotoUrls drops URLs for cards that lost their photo", () => {
+    const cache = new Map([["13000000-0000-0000-0000-000000000001", { url: "https://signed/old", fetchedAt: 0 }]]);
+    const [card] = stabilizePhotoUrls([makeCard({ photoUrl: null })], cache, 1000);
+    expect(card.photoUrl).toBeNull();
+    expect(cache.size).toBe(0);
   });
 });
