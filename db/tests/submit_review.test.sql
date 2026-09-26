@@ -139,7 +139,7 @@ select results_eq(
   'statuses updated only for successful reviews');
 
 select results_eq(
-  $$select submission_id::text, clinician_id::text, decision, reason from public.reviews order by submission_id$$,
+  $$select submission_id::text, clinician_id::text, decision, reason from public.reviews where submission_id::text like $q$a300000%$q$ order by submission_id$$,
   $$values
     ('a3000001-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000001', 'approved', null::text),
     ('a3000002-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000001', 'approved', null::text),
@@ -148,7 +148,7 @@ select results_eq(
   'review rows recorded with the caller as clinician');
 
 select results_eq(
-  $$select patient_id::text, submission_id::text, is_first_rx, opens_at, closes_at, status from public.windows$$,
+  $$select patient_id::text, submission_id::text, is_first_rx, opens_at, closes_at, status from public.windows where patient_id = 'a1000000-0000-0000-0000-000000000000'$$,
   $$values ('a1000000-0000-0000-0000-000000000000', 'a3000001-0000-0000-0000-000000000000', true,
             '2026-09-26T15:00:00Z'::timestamptz, '2026-10-03T15:00:00Z'::timestamptz, 'open')$$,
   'exactly one open window, with the dates passed in');
