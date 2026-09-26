@@ -1,0 +1,26 @@
+# Checks that run on every push (PRD: "Testing"). Web only: the analyze service and the
+# database suites need Python and a local Supabase, which do not belong in this job.
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      # An empty env must still build: lib/env.ts validates lazily, at the point of use.
+      - run: pnpm build
