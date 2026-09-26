@@ -29,6 +29,8 @@ After editing any `db/*.sql` file, run `db/sync-migrations.sh` to refresh `supab
 
 Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and
 `npx supabase@2.118.0 test db db/tests` for the database.
+The image service (`apps/analyze`, Python 3.12+) has its own pytest suite; see
+`apps/analyze/CONTRACT.md` for the API contract and how to run it.
 
 ### Dev logins (local seed only)
 
