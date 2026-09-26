@@ -18,10 +18,12 @@ Request bodies and image bytes are never logged; uvicorn runs without an access 
 import hmac
 import logging
 import os
+from typing import Literal
 
 import cv2
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.formparsers import MultiPartException, MultiPartParser
@@ -39,6 +41,28 @@ logger = logging.getLogger("analyze")
 
 # No interactive docs or OpenAPI schema: the service is called only by the Next.js backend.
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+
+class AnalyzeResponse(BaseModel):
+    """The /analyze contract (CONTRACT.md). Validated before every 200 so a bug in the
+    readers surfaces as a 500 instead of a malformed read reaching the pipeline."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    result: Literal["positive", "negative", "invalid"]
+    controlLine: bool
+    testLine: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    phash: str = Field(pattern=r"^[0-9a-f]{16}$")
+
+    @model_validator(mode="after")
+    def _lateral_flow_semantics(self) -> "AnalyzeResponse":
+        expected = "invalid" if not self.controlLine else ("positive" if self.testLine else "negative")
+        if self.result != expected:
+            raise ValueError(f"result {self.result!r} contradicts the detected lines")
+        if round(self.confidence, 2) != self.confidence:
+            raise ValueError("confidence must have at most 2 decimals")
+        return self
 
 
 class ApiError(Exception):
@@ -128,12 +152,11 @@ async def analyze(request: Request) -> JSONResponse:
         # PIL.UnidentifiedImageError is an OSError; lines.ImageDecodeError is a ValueError.
         raise ApiError(415, "unsupported_image") from None
 
-    return JSONResponse(
-        {
-            "result": read.result,
-            "controlLine": read.control_line,
-            "testLine": read.test_line,
-            "confidence": float(read.confidence),
-            "phash": phash,
-        }
+    body = AnalyzeResponse(
+        result=read.result,
+        controlLine=read.control_line,
+        testLine=read.test_line,
+        confidence=float(read.confidence),
+        phash=phash,
     )
+    return JSONResponse(body.model_dump())

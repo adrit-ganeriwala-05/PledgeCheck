@@ -49,7 +49,7 @@ const res = await fetch(`${serverEnv.ANALYZE_URL}/analyze`, {
 | 422 | `missing_image` | No (or empty) `image` field |
 | 422 | `invalid_multipart` | Malformed multipart body, or more than one file |
 | 500 | `service_not_configured` | `SERVICE_KEY` unset on the server; every request is refused |
-| 500 | `internal_error` | Unexpected failure |
+| 500 | `internal_error` | Unexpected failure, including a read that would violate this contract (the response is validated before every 200) |
 
 Caddy rejects bodies over 12 MiB before they reach the app; that 413 may not be JSON.
 The pipeline should treat any non-200 as "OpenCV read unavailable" and let the rules

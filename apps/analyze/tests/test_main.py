@@ -216,3 +216,33 @@ def test_payload_is_not_logged(client, caplog):
         post(client, marker)
         post(client, to_jpeg(scene()))
     assert marker.decode() not in caplog.text
+
+
+# --- response contract is enforced at the boundary ----------------------------
+
+@pytest.mark.parametrize(
+    "bad_read",
+    [
+        main.lines.LineRead("negative", True, False, 1.5),     # confidence out of range
+        main.lines.LineRead("positive", True, False, 0.4),     # result contradicts lines
+        main.lines.LineRead("negative", False, False, 0.4),    # no control line must be invalid
+        main.lines.LineRead("unknown", True, False, 0.4),      # outside the enum
+        main.lines.LineRead("negative", True, False, 0.333),   # more than 2 decimals
+    ],
+)
+def test_malformed_read_becomes_500_not_a_bad_200(client, monkeypatch, bad_read):
+    monkeypatch.setattr(main.lines, "read_lines", lambda data: bad_read)
+    res = post(client, to_jpeg(scene()))
+    assert res.status_code == 500
+    assert res.json() == {"error": "internal_error"}
+
+
+def test_malformed_phash_becomes_500(client, monkeypatch):
+    monkeypatch.setattr(main, "compute_phash", lambda data: "NOT-HEX")
+    assert post(client, to_jpeg(scene())).status_code == 500
+
+
+def test_response_model_forbids_extra_keys():
+    with pytest.raises(ValueError):
+        main.AnalyzeResponse(result="negative", controlLine=True, testLine=False, confidence=0.5,
+                             phash="0" * 16, extra="leak")
