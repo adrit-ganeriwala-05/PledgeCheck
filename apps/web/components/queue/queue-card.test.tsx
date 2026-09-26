@@ -15,7 +15,7 @@ describe("QueueCard: needs_review treatment", () => {
       readersAgree: false,
       flags: ["readers_disagree"],
     });
-    const { container } = render(<QueueCard card={card} onReviewed={vi.fn()} />);
+    const { container } = render(<QueueCard card={card} onResolved={vi.fn()} />);
 
     expect(screen.getByText("Needs closer review")).toBeInTheDocument();
     const article = container.querySelector('[data-status="needs_review"]');
@@ -27,7 +27,7 @@ describe("QueueCard: needs_review treatment", () => {
   });
 
   it("ready_for_review is neutral: no amber, no closer-review header", () => {
-    const { container } = render(<QueueCard card={makeCard()} onReviewed={vi.fn()} />);
+    const { container } = render(<QueueCard card={makeCard()} onResolved={vi.fn()} />);
     expect(screen.queryByText("Needs closer review")).not.toBeInTheDocument();
     expect(screen.getByText("Ready for review")).toBeInTheDocument();
     expect(container.querySelector('[data-status="ready_for_review"]')?.className ?? "").not.toMatch(/amber/);
@@ -36,7 +36,7 @@ describe("QueueCard: needs_review treatment", () => {
 
 describe("QueueCard: flags", () => {
   it("renders known flags with labels and unknown flags raw, never dropping any", () => {
-    render(<QueueCard card={makeCard({ flags: ["code_mismatch", "mystery_flag_v2"] })} onReviewed={vi.fn()} />);
+    render(<QueueCard card={makeCard({ flags: ["code_mismatch", "mystery_flag_v2"] })} onResolved={vi.fn()} />);
     const list = screen.getByRole("list", { name: "Flags" });
     expect(within(list).getByText("Code mismatch")).toBeInTheDocument();
     const unknown = within(list).getByText("mystery_flag_v2");
@@ -47,7 +47,7 @@ describe("QueueCard: flags", () => {
 
 describe("QueueCard: reads and permissions", () => {
   it("shows both reads side by side as evidence", () => {
-    render(<QueueCard card={makeCard()} onReviewed={vi.fn()} />);
+    render(<QueueCard card={makeCard()} onResolved={vi.fn()} />);
     expect(screen.getByText("Grok read")).toBeInTheDocument();
     expect(screen.getByText("OpenCV read")).toBeInTheDocument();
     expect(screen.getByText("Readers agree: Grok negative · OpenCV negative")).toBeInTheDocument();
@@ -55,13 +55,13 @@ describe("QueueCard: reads and permissions", () => {
   });
 
   it("staff see a read-only card", () => {
-    render(<QueueCard card={makeCard({ canReview: false })} onReviewed={vi.fn()} />);
+    render(<QueueCard card={makeCard({ canReview: false })} onResolved={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.getByText(/read-only/i)).toBeInTheDocument();
   });
 
   it("shows 'photo unavailable' when there is no photo", () => {
-    render(<QueueCard card={makeCard({ photoUrl: null })} onReviewed={vi.fn()} />);
+    render(<QueueCard card={makeCard({ photoUrl: null })} onResolved={vi.fn()} />);
     expect(screen.getByText("Photo unavailable")).toBeInTheDocument();
   });
 });

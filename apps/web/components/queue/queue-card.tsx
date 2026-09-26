@@ -23,23 +23,24 @@ const REVIEW_ERRORS: Record<string, string> = {
   unauthenticated: "Your session expired. Sign in again.",
 };
 
-type Props = { card: QueueCardData; onReviewed: (outcome: ReviewOutcome & { ok: true }) => void };
+type Props = {
+  card: QueueCardData;
+  // Called when the decision was saved (fully, or with a failed follow-up step).
+  onResolved: (outcome: ReviewOutcome) => void;
+};
 
 // One card holds the whole decision: photo, both reads, flags, window and the actions.
-export function QueueCard({ card, onReviewed }: Props) {
+export function QueueCard({ card, onResolved }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   function handleDone(outcome: ReviewOutcome) {
-    if (outcome.ok) {
+    if (outcome.ok || outcome.reviewRecorded) {
       setError(null);
-      onReviewed(outcome);
+      onResolved(outcome);
       return;
     }
-    setError(
-      outcome.reviewRecorded
-        ? "Decision saved, but a follow-up step failed. Tell the team."
-        : (REVIEW_ERRORS[outcome.error] ?? "Could not save the decision. Try again."),
-    );
+    // Not saved: stay on the card so the prescriber can try again.
+    setError(REVIEW_ERRORS[outcome.error] ?? "Could not save the decision. Try again.");
   }
 
   const needsReview = card.status === "needs_review";

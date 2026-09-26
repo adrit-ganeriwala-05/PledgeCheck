@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2Icon } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
   const reasonId = `reject-reason-${submissionId}`;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-busy={pending !== null}>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Button
@@ -58,7 +59,13 @@ export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
             onClick={() => decide("approved")}
             aria-label={`Approve test for ${pseudonym}`}
           >
-            {pending === "approved" ? "Approving…" : "Approve"}
+            {pending === "approved" ? (
+              <>
+                <Loader2Icon className="animate-spin" aria-hidden /> Approving…
+              </>
+            ) : (
+              "Approve"
+            )}
           </Button>
           <p className="text-xs text-muted-foreground">Approve opens the 7-day pickup window and deletes the photo.</p>
         </div>
@@ -101,7 +108,13 @@ export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
             disabled={pending !== null}
           />
           <Button type="submit" variant="destructive" disabled={pending !== null || !reason.trim()}>
-            {pending === "rejected" ? "Rejecting…" : "Confirm reject"}
+            {pending === "rejected" ? (
+              <>
+                <Loader2Icon className="animate-spin" aria-hidden /> Rejecting…
+              </>
+            ) : (
+              "Confirm reject"
+            )}
           </Button>
         </form>
       ) : null}

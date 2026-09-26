@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { QueueBoard } from "@/components/queue/queue-board";
-import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = { title: "Review queue · PledgeCheck" };
 
@@ -16,7 +15,6 @@ export default function QueuePage() {
         </p>
       </header>
       <QueueBoard />
-      <Toaster />
     </main>
   );
 }
