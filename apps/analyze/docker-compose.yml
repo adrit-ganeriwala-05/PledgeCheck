@@ -1,0 +1,38 @@
+# Runs on the Vultr instance: `docker compose up -d --build` from apps/analyze.
+# SERVICE_KEY is read from apps/analyze/.env (never committed). If it is unset the API
+# refuses every request with 500 rather than running open.
+services:
+  api:
+    build: .
+    environment:
+      SERVICE_KEY: ${SERVICE_KEY:-}
+    # Photos are held in memory only: the root filesystem is read-only, and /tmp (where
+    # multipart uploads over 1MB may spool) is RAM-backed tmpfs.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    # Not published to the host; only Caddy reaches it on the compose network.
+    expose:
+      - "8000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,11 @@
+# Automatic HTTPS for the image service once DNS for api.pledgecheck.tech points here.
+api.pledgecheck.tech {
+	# Matches the service's 12MB image limit (12 MiB).
+	request_body {
+		max_size 12MiB
+	}
+
+	header -Server
+
+	reverse_proxy api:8000
+}
