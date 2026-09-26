@@ -6,7 +6,9 @@
 
 export const AUDIT_ACTIONS = [
   "request.issued",
+  "session.started",
   "submission.received",
+  "submission.rejected_link",
   "submission.rejected_fraud",
   "review.approved",
   "review.rejected",

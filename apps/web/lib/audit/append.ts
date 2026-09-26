@@ -13,7 +13,7 @@ import { type AuditAction, isAuditAction } from "./events";
 import { computeHash, GENESIS_PREV_HASH, normalizeTimestamp } from "./hash";
 
 export type AppendAuditEventInput = {
-  actor: string; // "clinician:<uuid>" | "system"
+  actor: string; // "clinician:<uuid>" | "patient:<uuid>" | "patient" | "system"
   action: AuditAction;
   refId?: string | null;
   payload?: Record<string, unknown>;
@@ -35,7 +35,8 @@ export class AuditValidationError extends Error {
   }
 }
 
-const ACTOR_RE = /^(clinician:[0-9a-f-]{36}|system)$/;
+// Bare "patient" is for events before the patient is known (e.g. an invalid link).
+const ACTOR_RE = /^(clinician:[0-9a-f-]{36}|patient:[0-9a-f-]{36}|patient|system)$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ATTEMPTS = 5;
 export const AUTO_ANCHOR_EVERY = 10;

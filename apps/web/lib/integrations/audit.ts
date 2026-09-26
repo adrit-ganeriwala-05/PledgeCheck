@@ -8,12 +8,13 @@
 //     action:  e.g. "review.approved" | "review.rejected" (PRD example; final names pending)
 //     refId:   uuid of the affected row (here, the submission) or null
 //     payload: JSON object, no patient identifiers beyond ids
-//   Rejects if the event could not be written.
+//   Rejects if the event could not be written; POST /api/reviews then answers
+//   500 audit_failed with reviewRecorded: true after the decision is saved.
 //
-// To wire it: import Nihalika's append function from "@/lib/audit" below and delegate.
-// Until then this throws, and POST /api/reviews answers 500 audit_failed with
-// reviewRecorded: true after the decision is saved.
-import { IntegrationUnavailableError } from "./errors";
+// Delegates to lib/audit/append.ts, which validates the actor, the action (against the
+// catalog in lib/audit/events.ts) and the payload before writing.
+import { appendAuditEvent } from "@/lib/audit/append";
+import type { AuditAction } from "@/lib/audit/events";
 
 export type AuditEvent = {
   actor: string;
@@ -23,6 +24,10 @@ export type AuditEvent = {
 };
 
 export async function append(event: AuditEvent): Promise<void> {
-  void event;
-  throw new IntegrationUnavailableError("audit");
+  await appendAuditEvent({
+    actor: event.actor,
+    action: event.action as AuditAction,
+    refId: event.refId,
+    payload: event.payload,
+  });
 }

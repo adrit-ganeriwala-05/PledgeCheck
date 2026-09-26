@@ -113,7 +113,19 @@ describe("appendAuditEvent", () => {
   });
 
   it.each([
+    ["patient:<uuid>", `patient:${REF}`, "submission.received"],
+    ["bare patient", "patient", "submission.rejected_link"],
+    ["system", "system", "window.missed"],
+    ["clinician:<uuid>", CLINICIAN, "window.filled"],
+  ])("accepts actor %s", async (_label, actor, action) => {
+    state.heads = [null];
+    await expect(appendAuditEvent({ actor, action: action as never })).resolves.toMatchObject({ seq: 1 });
+    expect(rpcArgs().p_actor).toBe(actor);
+  });
+
+  it.each([
     ["invalid actor", { actor: "admin", action: "review.approved" }],
+    ["patient without uuid", { actor: "patient:bob", action: "submission.received" }],
     ["clinician without uuid", { actor: "clinician:bob", action: "review.approved" }],
     ["invalid action", { actor: "system", action: "anchor.created" }],
     ["non-uuid refId", { actor: "system", action: "window.filled", refId: "42" }],
