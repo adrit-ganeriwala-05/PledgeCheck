@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2Icon } from "lucide-react";
-import { useState } from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,10 +11,16 @@ export type ReviewOutcome =
   | { ok: true; status: "approved" | "rejected"; window: { opensAt: string; closesAt: string } | null }
   | { ok: false; error: string; reviewRecorded: boolean };
 
+export type ReviewActionsHandle = {
+  approve: () => void;
+  startReject: () => void;
+};
+
 type Props = {
   submissionId: string;
   pseudonym: string;
   onDone: (outcome: ReviewOutcome) => void;
+  ref?: Ref<ReviewActionsHandle>;
 };
 
 export async function submitReview(submissionId: string, decision: "approved" | "rejected", reason?: string): Promise<ReviewOutcome> {
@@ -33,10 +39,11 @@ export async function submitReview(submissionId: string, decision: "approved" | 
 }
 
 // Approve is one tap (no confirmation) so a clear case takes seconds; Reject asks for a reason.
-export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
+export function ReviewActions({ submissionId, pseudonym, onDone, ref }: Props) {
   const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
 
   async function decide(decision: "approved" | "rejected") {
     if (pending) return;
@@ -45,6 +52,15 @@ export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
     setPending(null);
     onDone(outcome);
   }
+
+  useImperativeHandle(ref, () => ({
+    approve: () => void decide("approved"),
+    startReject: () => {
+      setRejecting(true);
+      // Focus after the textarea renders.
+      setTimeout(() => reasonRef.current?.focus(), 0);
+    },
+  }));
 
   const reasonId = `reject-reason-${submissionId}`;
 
@@ -99,6 +115,7 @@ export function ReviewActions({ submissionId, pseudonym, onDone }: Props) {
             Reason for rejecting (required)
           </label>
           <Textarea
+            ref={reasonRef}
             id={`${reasonId}-text`}
             value={reason}
             maxLength={REASON_MAX_LENGTH}

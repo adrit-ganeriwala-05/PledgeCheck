@@ -1,7 +1,7 @@
 "use client";
 
 import { TriangleAlertIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { FlagBadges } from "./flag-badges";
 import { PhotoViewer } from "./photo-viewer";
 import { ReadersPanel } from "./readers-panel";
-import { ReviewActions, type ReviewOutcome } from "./review-actions";
+import { ReviewActions, type ReviewActionsHandle, type ReviewOutcome } from "./review-actions";
 import { closerReviewReasons } from "./review-reasons";
 import { WindowCountdown } from "./window-countdown";
 
@@ -43,14 +43,38 @@ export function QueueCard({ card, onResolved }: Props) {
     setError(REVIEW_ERRORS[outcome.error] ?? "Could not save the decision. Try again.");
   }
 
+  const actions = useRef<ReviewActionsHandle>(null);
+
+  // Keyboard: A approves and R starts a rejection, only while the card itself has focus
+  // (never while typing in the reason box or when a button inside has focus).
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (!card.canReview || e.target !== e.currentTarget) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const key = e.key.toLowerCase();
+    if (key === "a") {
+      e.preventDefault();
+      actions.current?.approve();
+    } else if (key === "r") {
+      e.preventDefault();
+      actions.current?.startReject();
+    }
+  }
+
   const needsReview = card.status === "needs_review";
   const reasons = needsReview ? closerReviewReasons(card) : [];
 
   return (
     <Card
+      role="group"
       aria-labelledby={`card-title-${card.submissionId}`}
       data-status={card.status}
-      className={cn(needsReview && "border-2 border-amber-500 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/30")}
+      tabIndex={card.canReview ? 0 : undefined}
+      onKeyDown={handleKeyDown}
+      aria-keyshortcuts={card.canReview ? "A R" : undefined}
+      className={cn(
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        needsReview && "border-2 border-amber-500 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/30",
+      )}
     >
       <CardHeader>
         {needsReview ? (
@@ -84,7 +108,18 @@ export function QueueCard({ card, onResolved }: Props) {
           <FlagBadges flags={card.flags} />
           <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
           {card.canReview ? (
-            <ReviewActions submissionId={card.submissionId} pseudonym={card.patient.pseudonym} onDone={handleDone} />
+            <>
+              <ReviewActions
+                ref={actions}
+                submissionId={card.submissionId}
+                pseudonym={card.patient.pseudonym}
+                onDone={handleDone}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shortcuts when this card is focused: <kbd className="font-mono">A</kbd> approve ·{" "}
+                <kbd className="font-mono">R</kbd> reject
+              </p>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">Read-only: only prescribers can approve or reject.</p>
           )}
