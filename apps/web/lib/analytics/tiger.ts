@@ -44,7 +44,7 @@ function getPool(): Pool | null {
   }
 
   pool ??= new Pool({
-    connectionString,
+    connectionString: withoutSslMode(connectionString),
     ssl: { rejectUnauthorized: false },
     max: 3,
     idleTimeoutMillis: 10_000,
@@ -108,6 +108,24 @@ export async function weeklyAccess(weeks = 12): Promise<WeeklyRow[]> {
   } catch (error) {
     console.error("tiger read failed", error);
     return [];
+  }
+}
+
+/**
+ * Tiger hands you a url ending in `?sslmode=require` and serves a self-signed chain.
+ * node-postgres escalates that sslmode to verify-full and the connection dies with
+ * SELF_SIGNED_CERT_IN_CHAIN, overriding the `ssl` option set alongside it. Dropping the
+ * parameter lets the explicit `ssl` above apply. Worth the care: recordAccessEvent
+ * swallows failures by design, so this would have shown up only as a dashboard that
+ * stayed empty for no visible reason.
+ */
+function withoutSslMode(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    url.searchParams.delete("sslmode");
+    return url.toString();
+  } catch {
+    return connectionString;
   }
 }
 

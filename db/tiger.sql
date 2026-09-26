@@ -22,8 +22,13 @@ CREATE INDEX IF NOT EXISTS access_events_practice_time_idx
     ON access_events (practice_id, time DESC);
 
 -- Weekly rollup behind the drug-maker dashboard.
+-- materialized_only = false turns on real-time aggregation: reads UNION the
+-- materialised buckets with the raw rows newer than them. Without it, TimescaleDB
+-- 2.13+ defaults to true and the refresh policy's end_offset (1 hour, below) hides
+-- everything written in the last hour -- so a test approved during a demo would not
+-- reach the dashboard until an hour later.
 CREATE MATERIALIZED VIEW IF NOT EXISTS weekly_access
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT time_bucket('7 days', time) AS week,
        event,
        count(*)            AS n,
