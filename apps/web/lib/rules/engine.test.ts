@@ -150,6 +150,20 @@ describe("rules engine, edges the demo will poke at", () => {
     expect(result.reasons.join(" ")).toContain("code missing or wrong");
   });
 
+  it("never puts either code in the reasons (they are stored and audited)", () => {
+    const result = evaluate(
+      patient(),
+      submission(),
+      reads({ grok: { codeRead: "AB12" } }),
+      NOW,
+    );
+
+    const text = result.reasons.join(" ");
+    expect(text).toContain("the code on the test does not match");
+    expect(text).not.toContain("AB12");
+    expect(text).not.toContain("K7Q2");
+  });
+
   it("blocks a missing challenge code", () => {
     const result = evaluate(patient(), submission(), reads({ grok: { codeRead: null } }), NOW);
 
@@ -159,6 +173,12 @@ describe("rules engine, edges the demo will poke at", () => {
 
   it("ignores case and spacing in the challenge code", () => {
     const result = evaluate(patient(), submission(), reads({ grok: { codeRead: " k7q2 " } }), NOW);
+
+    expect(result.decision).toBe("ready_for_review");
+  });
+
+  it("ignores spaces inside the challenge code too", () => {
+    const result = evaluate(patient(), submission(), reads({ grok: { codeRead: "K7 Q2" } }), NOW);
 
     expect(result.decision).toBe("ready_for_review");
   });

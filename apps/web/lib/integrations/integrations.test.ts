@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as audit from "./audit";
-import { IntegrationUnavailableError } from "./errors";
 import * as window from "./window";
+
+const { appendAuditEvent } = vi.hoisted(() => ({ appendAuditEvent: vi.fn() }));
+vi.mock("@/lib/audit/append", () => ({ appendAuditEvent }));
 
 // openApprovalWindow asks the database how many windows this patient already has.
 // Only that count matters here; the dates come from the rules engine.
@@ -60,10 +62,26 @@ describe("window adapter (Labib's rules engine)", () => {
   });
 });
 
-describe("integration adapters (teammate modules not present yet)", () => {
-  it("audit adapter reports it is unavailable", async () => {
-    const call = audit.append({ actor: "clinician:x", action: "review.approved", refId: null, payload: {} });
-    await expect(call).rejects.toBeInstanceOf(IntegrationUnavailableError);
-    await expect(call).rejects.toMatchObject({ integration: "audit" });
+describe("audit adapter (Nihalika's audit module)", () => {
+  const event = {
+    actor: "clinician:a0000000-0000-0000-0000-000000000001",
+    action: "review.approved",
+    refId: "13000000-0000-0000-0000-000000000001",
+    payload: { decision: "approved", reason: null },
+  };
+
+  beforeEach(() => {
+    appendAuditEvent.mockReset();
+  });
+
+  it("delegates to appendAuditEvent", async () => {
+    appendAuditEvent.mockResolvedValue({ seq: 1, hash: "0".repeat(64) });
+    await expect(audit.append(event)).resolves.toBeUndefined();
+    expect(appendAuditEvent).toHaveBeenCalledWith(event);
+  });
+
+  it("rejects when the event could not be written", async () => {
+    appendAuditEvent.mockRejectedValue(new Error("audit chain conflict persisted"));
+    await expect(audit.append(event)).rejects.toThrow(/conflict/);
   });
 });

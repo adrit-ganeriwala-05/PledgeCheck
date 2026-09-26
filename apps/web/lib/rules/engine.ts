@@ -116,15 +116,16 @@ export function evaluate(
 
   // The challenge code proves the photo was taken after the link was issued.
   // A missing or wrong code is a fraud failure, not a judgment call.
+  // Reasons are stored and audited, so they never include either code.
   if (grok) {
-    const expected = submission.challengeCode.trim().toUpperCase();
-    const read = (grok.codeRead ?? "").trim().toUpperCase();
+    const expected = normalizeCode(submission.challengeCode);
+    const read = normalizeCode(grok.codeRead ?? "");
     if (read === "") {
       blocked.push("code missing or wrong: no code visible on the test");
       return decide(blocked, review, ok, null);
     }
     if (read !== expected) {
-      blocked.push(`code missing or wrong: read ${read}, expected ${expected}`);
+      blocked.push("code missing or wrong: the code on the test does not match");
       return decide(blocked, review, ok, null);
     }
     ok.push("code matches");
@@ -139,6 +140,11 @@ export function evaluate(
   }
 
   return decide(blocked, review, ok, windowFor(now));
+}
+
+/** Case and spacing never matter: "k7 q2" is K7Q2 (same rule as lib/fraud codesMatch). */
+function normalizeCode(code: string): string {
+  return code.replace(/\s+/g, "").toUpperCase();
 }
 
 function label(source: Read["source"]): string {

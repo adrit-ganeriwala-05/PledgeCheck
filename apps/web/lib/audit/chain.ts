@@ -1,13 +1,16 @@
-// Hash-chained audit log: append one event, linked to the one before it.
+// Compatibility shim for the interim audit writer the submission pipeline and the
+// windows route were built against. There is one audit writer: lib/audit/append.ts.
+// This keeps the old call shape and its best-effort behavior, so an audit failure is
+// logged and never fails a patient's submission.
 //
-// Owner: Nihalika (ticket N4). Interim version by Labib so every clinic action
-// in the submission pipeline writes its audit event from the start. Nihalika's
-// version adds the append-only Supabase policy, the anchor and the verify pass.
-//
-// hash = sha256(prev_hash + canonical JSON of the event, keys sorted)
+// `db` and `now` are accepted but unused: the writer uses the service-role client and
+// stamps its own server time, so every row follows the hash spec in hash.ts.
+import "server-only";
 
-import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { appendAuditEvent as appendToChain } from "./append";
+import type { AuditAction } from "./events";
 
 export interface AuditEventInput {
   actor: string;
@@ -16,70 +19,26 @@ export interface AuditEventInput {
   payload: Record<string, unknown>;
 }
 
-/** JSON with every object's keys sorted, so one event always hashes the same. */
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`);
-
-  return `{${entries.join(",")}}`;
-}
-
-export function chainHash(prevHash: string, event: Record<string, unknown>): string {
-  return createHash("sha256").update(prevHash + canonicalJson(event)).digest("hex");
-}
-
-/** The first row's prev_hash: 32 zero bytes. */
-export const GENESIS_HASH = "0".repeat(64);
-
-/**
- * Append one event to the chain. Best effort by design: an audit write must
- * never be the reason a patient's submission fails, so a failure is logged and
- * swallowed rather than thrown.
- */
 export async function appendAuditEvent(
   db: SupabaseClient,
   input: AuditEventInput,
   now: Date,
 ): Promise<{ seq: number; hash: string } | null> {
+  void db;
+  void now;
   try {
-    const { data: head } = await db
-      .from("audit_events")
-      .select("seq, hash")
-      .order("seq", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const prevHash = (head as { hash: string } | null)?.hash ?? GENESIS_HASH;
-
-    const event = {
+    return await appendToChain({
       actor: input.actor,
-      action: input.action,
-      ref_id: input.refId,
+      // Validated at runtime against the catalog; an unknown action is logged below.
+      action: input.action as AuditAction,
+      refId: input.refId,
       payload: input.payload,
-      created_at: now.toISOString(),
-    };
-
-    const hash = chainHash(prevHash, event);
-
-    const { data, error } = await db
-      .from("audit_events")
-      .insert({ ...event, prev_hash: prevHash, hash })
-      .select("seq, hash")
-      .single();
-
-    if (error || !data) {
-      console.error("audit append failed", error);
-      return null;
-    }
-
-    return data as { seq: number; hash: string };
+    });
   } catch (error) {
-    console.error("audit append threw", error);
+    console.error("[audit] append failed", {
+      action: input.action,
+      cause: error instanceof Error ? error.message : "unknown",
+    });
     return null;
   }
 }

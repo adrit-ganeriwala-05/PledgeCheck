@@ -62,6 +62,10 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
     linkProblem: "This link cannot be used",
     tryAgain: "Try again",
     stepOf: "Step",
+    resume: "Continue",
+    starting: "Starting…",
+    timeLeft: "Time left",
+    startFailed: "Could not start. Check your connection.",
   },
   es: {
     title: "Prueba de embarazo en casa",
@@ -78,5 +82,29 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
     linkProblem: "Este enlace no se puede usar",
     tryAgain: "Intentar de nuevo",
     stepOf: "Paso",
+    resume: "Continuar",
+    starting: "Comenzando…",
+    timeLeft: "Tiempo restante",
+    startFailed: "No se pudo comenzar. Revise su conexión.",
+  },
+};
+
+/** Why a link cannot be used, by link state (lib/fraud/session.ts). */
+export type LinkProblemState = "invalid" | "link_expired" | "session_expired" | "submitted" | "error";
+
+export const LINK_PROBLEM_TEXT: Record<Language, Record<LinkProblemState, string>> = {
+  en: {
+    invalid: "This link is not valid. Ask your clinic for a new one.",
+    link_expired: "This link has expired. Ask your clinic for a new one.",
+    session_expired: "Your test session has ended. Ask your clinic for a new link.",
+    submitted: "A photo was already sent with this link. Your clinic will be in touch.",
+    error: "Something went wrong. Reload the page or contact your clinic.",
+  },
+  es: {
+    invalid: "Este enlace no es válido. Pida uno nuevo a su clínica.",
+    link_expired: "Este enlace ha caducado. Pida uno nuevo a su clínica.",
+    session_expired: "Su sesión de prueba terminó. Pida un enlace nuevo a su clínica.",
+    submitted: "Ya se envió una foto con este enlace. Su clínica se comunicará con usted.",
+    error: "Algo salió mal. Recargue la página o contacte a su clínica.",
   },
 };

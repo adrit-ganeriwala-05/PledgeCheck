@@ -171,6 +171,18 @@ describe("GET /api/queue", () => {
     expect(body.cards.map((c) => c.grok.codeMatches)).toEqual([false, null]);
   });
 
+  it("codeMatches ignores case and every space, like the fraud check", async () => {
+    setup({
+      rows: [
+        row(1, "needs_review", "2026-09-26T07:00:00Z", { grok_code: "K7 Q2" }),
+        row(2, "needs_review", "2026-09-26T08:00:00Z", { grok_code: " k7q2 " }),
+        row(3, "needs_review", "2026-09-26T09:00:00Z", { grok_code: "K7 Q3" }),
+      ],
+    });
+    const body = (await (await GET()).json()) as QueueResponse;
+    expect(body.cards.map((c) => c.grok.codeMatches)).toEqual([true, true, false]);
+  });
+
   it("returns an empty list when nothing is waiting", async () => {
     setup({ rows: [] });
     expect(await (await GET()).json()).toEqual({ cards: [] });

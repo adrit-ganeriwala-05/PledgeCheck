@@ -27,6 +27,11 @@ export type QueueResponse = { cards: QueueCard[] };
 
 export const PHOTO_URL_TTL_SECONDS = 5 * 60;
 
+/** Case and spacing never matter, same as the fraud check (lib/fraud codesMatch). */
+function normalizeCode(code: string): string {
+  return code.replace(/\s+/g, "").toUpperCase();
+}
+
 export type SubmissionRow = {
   id: string;
   status: string;
@@ -100,7 +105,7 @@ export function buildCards(
           code: row.grok_code,
           confidence: row.grok_confidence,
           codeMatches:
-            row.grok_code === null ? null : row.grok_code.trim().toUpperCase() === request.challenge_code.trim().toUpperCase(),
+            row.grok_code === null ? null : normalizeCode(row.grok_code) === normalizeCode(request.challenge_code),
         },
         opencv: { result: row.cv_result, confidence: row.cv_confidence },
         readersAgree: row.grok_result !== null && row.grok_result === row.cv_result,
