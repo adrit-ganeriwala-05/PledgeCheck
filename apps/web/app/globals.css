@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-brand: #0d7d6e;
+  --color-brand-dark: #0a6155;
+  --color-warn: #b45309;
+  --color-stop: #b91c1c;
+}
+
+html,
+body {
+  background: #f8fafc;
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The capture page is used one-handed, outdoors, on a phone. */
+.tap-target {
+  min-height: 3.5rem;
+}

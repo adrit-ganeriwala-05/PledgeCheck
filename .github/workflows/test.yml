@@ -1,0 +1,18 @@
+# The rules engine tests run on every push (PRD: "Testing").
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rules-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
