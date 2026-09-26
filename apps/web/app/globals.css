@@ -130,3 +130,20 @@
     @apply font-sans;
   }
 }
+/* PledgeCheck patient and analytics screens. Owner: Labib (L1, L5, L8).
+   Prefixed --pc-* so they never collide with the shadcn tokens above: shadcn's
+   --color-muted is a near-white surface, while --pc-muted is muted body text. */
+:root {
+  --pc-ink: #0f172a;
+  --pc-muted: #64748b;
+  --pc-line: #e2e8f0;
+  --pc-brand: #0d7d6e;
+  --pc-brand-dark: #0a6155;
+  --pc-warn: #b45309;
+  --pc-stop: #b91c1c;
+}
+
+/* The capture page is used one-handed, outdoors, on a phone. */
+.tap-target {
+  min-height: 3.5rem;
+}
