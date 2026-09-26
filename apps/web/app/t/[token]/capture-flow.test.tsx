@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// findBy* waits up to 1 s by default; a cold, heavily parallel run can take longer.
+configure({ asyncUtilTimeout: 5000 });
 
 import { LINK_PROBLEM_TEXT, UI_TEXT } from "@/lib/voice";
 
@@ -110,6 +113,9 @@ describe("CaptureFlow countdown", () => {
     render(<CaptureFlow token={TOKEN} language="en" />);
     fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
     await screen.findByTestId("challenge-code");
+    // The code is on screen once React commits; flush effects so the countdown interval
+    // exists before the fake clock moves (otherwise this races under a loaded test run).
+    await act(async () => {});
     expect(screen.getByRole("timer")).toHaveTextContent("01:00");
 
     act(() => {

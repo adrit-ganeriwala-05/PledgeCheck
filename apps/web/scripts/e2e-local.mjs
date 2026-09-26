@@ -1,5 +1,6 @@
 // Local end-to-end check of GET /api/queue and POST /api/reviews against the local
-// Supabase stack and seed. Refuses to run against anything but localhost.
+// Supabase stack and seed, including the audit events the reviews write.
+// Refuses to run against anything but localhost.
 //
 //   npx supabase@2.118.0 db reset          # fresh seed (local only)
 //   pnpm build && <start the app on :3100 with the local NEXT_PUBLIC_* and SUPABASE_SERVICE_ROLE_KEY>
@@ -60,6 +61,14 @@ async function api(path, cookie, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, body: await res.json() };
+}
+
+// The review route writes exactly one audit event per decision, by the prescriber.
+async function assertAudited(action, submissionId) {
+  const { data, error } = await admin.from("audit_events").select("actor, payload").eq("action", action).eq("ref_id", submissionId);
+  if (error) throw error;
+  assert.equal(data.length, 1, `one ${action} event for ${submissionId}`);
+  assert.equal(data[0].actor, "clinician:11111111-0000-0000-0000-000000000001");
 }
 
 async function submission(id) {
@@ -127,21 +136,26 @@ await check("reviews: other practice's submission is 404", async () => {
   assert.equal(r.status, 404);
 });
 
-await check("reviews: approve without window logic is 503 and writes nothing", async () => {
+await check("reviews: approve saves the decision, opens a 7-day window and writes the audit event", async () => {
   const r = await api("/api/reviews", rx1, { submissionId: SUB.northReady, decision: "approved" });
-  assert.deepEqual(r, { status: 503, body: { error: "window_logic_unavailable" } });
-  assert.equal((await submission(SUB.northReady)).status, "ready_for_review");
-  const { count } = await admin.from("reviews").select("id", { count: "exact", head: true }).eq("submission_id", SUB.northReady);
-  assert.equal(count, 0);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, "approved");
+  const days = (Date.parse(r.body.window.closesAt) - Date.parse(r.body.window.opensAt)) / 86_400_000;
+  assert.equal(days, 7);
+  assert.equal((await submission(SUB.northReady)).status, "approved");
+  const { data: window } = await admin.from("windows").select("status").eq("submission_id", SUB.northReady).single();
+  assert.equal(window.status, "open");
+  await assertAudited("review.approved", SUB.northReady);
 });
 
 await check("reviews: reject without a reason is 400", async () => {
   assert.equal((await api("/api/reviews", rx1, { submissionId: SUB.northDisagree, decision: "rejected" })).status, 400);
 });
 
-await check("reviews: reject saves the decision, reports the missing audit log, deletes the photo", async () => {
+await check("reviews: reject saves the decision, writes the audit event, deletes the photo", async () => {
   const r = await api("/api/reviews", rx1, { submissionId: SUB.northDisagree, decision: "rejected", reason: "Readers disagree; repeat in clinic" });
-  assert.deepEqual(r, { status: 500, body: { error: "audit_failed", reviewRecorded: true } });
+  assert.deepEqual(r, { status: 200, body: { status: "rejected", window: null } });
+  await assertAudited("review.rejected", SUB.northDisagree);
   const after = await submission(SUB.northDisagree);
   assert.equal(after.status, "rejected");
   assert.equal(after.photo_path, null);
@@ -157,20 +171,25 @@ await check("reviews: second decision on the same test is 409", async () => {
   assert.equal(r.status, 409);
 });
 
-await check("queue: reviewed card is gone", async () => {
+await check("queue: reviewed cards are gone", async () => {
   const { body } = await api("/api/queue", rx1);
-  assert.equal(body.cards.length, 3);
-  assert.ok(!body.cards.some((c) => c.submissionId === SUB.northDisagree));
+  assert.equal(body.cards.length, 2);
+  assert.ok(!body.cards.some((c) => c.submissionId === SUB.northDisagree || c.submissionId === SUB.northReady));
 });
 
 // --- the browser cannot bypass the route ----------------------------------------
 await check("bypass: a signed-in prescriber cannot call submit_review or insert reviews directly", async () => {
+  // A card that is still reviewable, so an accidental success would show up as a status change.
+  const { body } = await api("/api/queue", rx1);
+  const target = body.cards[0].submissionId;
+  const before = (await submission(target)).status;
+
   const direct = createClient(SUPABASE_URL, status.ANON_KEY, { auth: { persistSession: false } });
   const { error: signInError } = await direct.auth.signInWithPassword({ email: "prescriber1@example.test", password: PASSWORD });
   if (signInError) throw signInError;
   const rpc = await direct.rpc("submit_review", {
     p_clinician_id: "11111111-0000-0000-0000-000000000001",
-    p_submission_id: SUB.northReady,
+    p_submission_id: target,
     p_decision: "approved",
     p_reason: null,
     p_window: { opens_at: "2026-09-26T00:00:00Z", closes_at: "2027-09-26T00:00:00Z" },
@@ -178,9 +197,21 @@ await check("bypass: a signed-in prescriber cannot call submit_review or insert 
   assert.equal(rpc.error?.code, "42501");
   const insert = await direct
     .from("reviews")
-    .insert({ submission_id: SUB.northReady, clinician_id: "11111111-0000-0000-0000-000000000001", decision: "approved" });
+    .insert({ submission_id: target, clinician_id: "11111111-0000-0000-0000-000000000001", decision: "approved" });
   assert.equal(insert.error?.code, "42501");
-  assert.equal((await submission(SUB.northReady)).status, "ready_for_review");
+  assert.equal((await submission(target)).status, before);
+});
+
+// --- the audit log is one unbroken chain ------------------------------------------
+await check("audit: seq is contiguous from 1 and every prev_hash links to the row before", async () => {
+  const { data: rows, error } = await admin.from("audit_events").select("seq, prev_hash, hash").order("seq");
+  if (error) throw error;
+  assert.ok(rows.length >= 2);
+  rows.forEach((row, i) => {
+    assert.equal(Number(row.seq), i + 1);
+    assert.equal(row.prev_hash, i === 0 ? "0".repeat(64) : rows[i - 1].hash);
+    assert.match(row.hash, /^[0-9a-f]{64}$/);
+  });
 });
 
 console.log(`\n${passed} checks passed`);

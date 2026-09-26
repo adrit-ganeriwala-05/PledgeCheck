@@ -101,7 +101,8 @@ never on localhost.
 | `pnpm lint` / `pnpm typecheck` | ESLint, then `next typegen && tsc --noEmit` |
 | `pnpm test` | 369 vitest tests across 38 files |
 | `pnpm build` | Must pass with an empty environment: `lib/env.ts` validates lazily, at the point of use |
-| `npx supabase@2.118.0 test db db/tests` | 66 pgTAP assertions: RLS isolation, server-only reviews, audit immutability |
+| `npx supabase@2.118.0 test db db/tests` | 78 pgTAP assertions: RLS isolation, server-only reviews, audit immutability, `audit_append` chain checks |
+| `node scripts/e2e-local.mjs`, `node scripts/e2e-link-flow.mjs` (in `apps/web`) | Against local Supabase and `next start` on :3100: queue and reviews (13 checks); links, Start, home-testing switch, early upload rejections, and every audit hash re-verified (15 checks) |
 | `pytest` in `apps/analyze` | Image service (Python 3.12+); see [`apps/analyze/CONTRACT.md`](apps/analyze/CONTRACT.md) |
 
 The first four run in CI on every push (`.github/workflows/test.yml`).
