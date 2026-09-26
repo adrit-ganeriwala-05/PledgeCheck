@@ -5,12 +5,16 @@
 // checks that need no AI run first, so a replayed link or a reused photo never
 // costs an API call.
 //
-//   1. one-time link      (N1)
+//   1. one-time link      (N1/N2: checkSessionForUpload — the patient tapped Start
+//                          and the session is still running)
 //   2. live camera only   (enforced on the page; the server stamps its own time)
-//   3. challenge code     (N2, checked inside the rules engine)
-//   4. photo reuse        (N3, on the Vultr phash)
+//   3. challenge code     (N2: checkChallengeCode on Grok's read)
+//   4. photo reuse        (N3: checkPhotoReuse on the Vultr phash)
 //   5. two readers agree  (Grok + OpenCV)
 //   then the rules engine decides, and nothing here can approve anything.
+//
+// Every fraud failure is audited once with recordFraudRejection (payload { reason }
+// only; never the code, phash or token).
 //
 // The submissions row is created before the photo is uploaded, because the storage
 // policy keys objects on <practice_id>/<submission_id>.jpg (db/policies.sql) and the
@@ -21,8 +25,13 @@ import { NextResponse } from "next/server";
 import { analyzePhoto, AnalyzeError } from "@/lib/ai/analyze";
 import { GrokReadError, readTestPhoto } from "@/lib/ai/grok";
 import { appendAuditEvent } from "@/lib/audit/chain";
-import { checkReuse } from "@/lib/fraud/reuse";
-import { checkToken, consumeRequest } from "@/lib/fraud/token";
+import {
+  checkChallengeCode,
+  checkPhotoReuse,
+  checkSessionForUpload,
+  recordFraudRejection,
+  type SessionFailure,
+} from "@/lib/fraud/checks";
 import { evaluate } from "@/lib/rules/engine";
 import { statusFor } from "@/lib/rules/status";
 import type { Patient, Read, Submission } from "@/lib/rules/types";
@@ -35,6 +44,9 @@ export const maxDuration = 60;
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const PHOTO_BUCKET = "photos";
+/** Fraud flags that stop a submission; any other flag is information for the prescriber. */
+const BLOCKING_FLAGS = ["photo_already_used", "code_missing_or_wrong"];
+const UNIQUE_VIOLATION = "23505";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -58,46 +70,34 @@ export async function POST(request: Request) {
   if (image.size > MAX_PHOTO_BYTES) return bad("the photo is too large; retake it", 413);
   if (!ALLOWED_TYPES.includes(image.type)) return bad("unsupported photo format", 415);
 
-  // Fraud check 1 — one-time link.
-  const tokenCheck = await checkToken(db, token, now);
-  if (!tokenCheck.ok) {
-    await appendAuditEvent(
-      db,
-      {
-        actor: "patient",
-        action: "submission.rejected_link",
-        refId: null,
-        payload: { failure: tokenCheck.failure },
-      },
-      now,
-    );
-    const status = tokenCheck.failure === "expired" ? "expired" : "rejected_fraud";
-    return NextResponse.json(
-      { submissionId: null, status, reason: tokenCheck.failure },
-      { status: 410 },
-    );
+  // Fraud check 1 — one-time link, inside an active session.
+  let session: Awaited<ReturnType<typeof checkSessionForUpload>>;
+  try {
+    session = await checkSessionForUpload(token, now);
+  } catch (error) {
+    console.error("link check failed", describe(error));
+    return bad("could not check the link; try again", 500);
+  }
+  if (!session.ok) {
+    await recordFraudRejection(session.requestId, session.reason);
+    return linkRejected(session.reason);
   }
 
-  const testRequest = tokenCheck.request;
-
-  // Claim the link before spending any AI budget, so a replay cannot race us.
-  if (!(await consumeRequest(db, testRequest.id, now))) {
-    return NextResponse.json(
-      { submissionId: null, status: "rejected_fraud", reason: "already_used" },
-      { status: 410 },
-    );
-  }
-
-  const patient = await loadPatient(db, testRequest.patient_id);
+  const patient = await loadPatient(db, session.patientId);
   if (!patient) return bad("patient not found for this link", 404);
 
-  // The row is claimed now so the storage path can use its id.
+  // Claim the link before spending any AI budget, so a replay cannot race us: the row
+  // is unique per request, so a second upload loses here. The storage path uses its id.
   const { data: created, error: createError } = await db
     .from("submissions")
-    .insert({ request_id: testRequest.id, status: "awaiting_photo", flags: [] })
+    .insert({ request_id: session.requestId, status: "awaiting_photo", flags: [] })
     .select("id")
     .single();
 
+  if (createError?.code === UNIQUE_VIOLATION) {
+    await recordFraudRejection(session.requestId, "already_submitted");
+    return linkRejected("already_submitted");
+  }
   if (createError || !created) {
     console.error("submission insert failed", createError);
     return bad("could not record the submission", 500);
@@ -144,12 +144,28 @@ export async function POST(request: Request) {
   if (!grok) flags.push("grok_unavailable");
   if (!cv) flags.push("opencv_unavailable");
 
-  // Fraud check 4 — photo reuse, on the hash the Vultr service computed.
+  // Fraud check 4 — photo reuse, on the hash the Vultr service computed. If the check
+  // itself fails, the prescriber sees a flag instead of the pipeline stopping.
   let phash: string | null = null;
   if (cv) {
     phash = cv.phash;
-    const reuse = await checkReuse(db, cv.phash, submissionId);
-    if (reuse.reused) flags.push("photo_already_used");
+    try {
+      const reuse = await checkPhotoReuse(cv.phash, { excludeSubmissionId: submissionId });
+      if (!reuse.ok) {
+        flags.push("photo_already_used");
+        await recordFraudRejection(session.requestId, "photo_already_used");
+      }
+    } catch (error) {
+      console.error("reuse check failed", describe(error));
+      flags.push("reuse_check_unavailable");
+    }
+  }
+
+  // Fraud check 3 — the code written on the test, as Grok read it. Only a reader that
+  // returned can be checked; without Grok the submission already needs review.
+  if (grok && !checkChallengeCode(session.expectedCode, grok.code_read).ok) {
+    flags.push("code_missing_or_wrong");
+    await recordFraudRejection(session.requestId, "code_missing_or_wrong");
   }
 
   const reads: Read[] = [];
@@ -165,12 +181,12 @@ export async function POST(request: Request) {
 
   const submission: Submission = {
     id: submissionId,
-    setting: testRequest.setting,
+    setting: session.setting,
     isFirstRx: patient.phase === "pre" || !patient.lastWindow,
     capturedAt,
-    challengeCode: testRequest.challenge_code,
-    // A photo_already_used flag blocks; an unavailable reader only flags.
-    flags: flags.filter((f) => f === "photo_already_used"),
+    challengeCode: session.expectedCode,
+    // A failed fraud check blocks; an unavailable reader or reuse check only flags.
+    flags: flags.filter((f) => BLOCKING_FLAGS.includes(f)),
   };
 
   const evaluation = evaluate(patient, submission, reads, now);
@@ -207,7 +223,7 @@ export async function POST(request: Request) {
         status,
         decision: evaluation.decision,
         reasons: evaluation.reasons,
-        setting: testRequest.setting,
+        setting: session.setting,
       },
     },
     now,
@@ -272,4 +288,10 @@ function describe(error: unknown): string {
 
 function bad(reason: string, status: number) {
   return NextResponse.json({ submissionId: null, status: "error", reason }, { status });
+}
+
+/** A link that cannot take this photo. The patient needs a new link, or to tap Start. */
+function linkRejected(reason: SessionFailure) {
+  const status = reason === "session_expired" ? "expired" : "rejected_fraud";
+  return NextResponse.json({ submissionId: null, status, reason }, { status: 410 });
 }

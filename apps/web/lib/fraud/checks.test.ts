@@ -19,7 +19,7 @@ const PRACTICE_ID = "10000000-0000-0000-0000-000000000000";
 function session(opts: { request?: Record<string, unknown> | null; submission?: { id: string } | null }) {
   const request =
     opts.request === undefined
-      ? { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", expires_at: at(600), used_at: at(-5) }
+      ? { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", setting: "home", expires_at: at(600), used_at: at(-5) }
       : opts.request;
   mocks.adminClient = mockSupabase({
     tables: {
@@ -44,34 +44,35 @@ describe("checkSessionForUpload", () => {
       patientId: PATIENT_ID,
       practiceId: PRACTICE_ID,
       expectedCode: "K7Q2",
+      setting: "home",
     });
   });
 
   it("invalid_link for an unknown token", async () => {
     session({ request: null });
-    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "invalid_link" });
+    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "invalid_link", requestId: null });
   });
 
   it("session_not_started before Start (strict, unlike the interim consumeRequest)", async () => {
-    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", expires_at: at(600), used_at: null } });
-    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_not_started" });
+    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", setting: "home", expires_at: at(600), used_at: null } });
+    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_not_started", requestId: REQUEST_ID });
   });
 
   it("session_not_started for a link that expired unstarted", async () => {
-    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", expires_at: at(-1), used_at: null } });
-    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_not_started" });
+    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", setting: "home", expires_at: at(-1), used_at: null } });
+    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_not_started", requestId: REQUEST_ID });
   });
 
   it("session_expired exactly at the deadline", async () => {
-    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", expires_at: at(600), used_at: at(-40) } });
-    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_expired" });
-    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", expires_at: at(600), used_at: at(-39.99) } });
+    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", setting: "home", expires_at: at(600), used_at: at(-40) } });
+    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "session_expired", requestId: REQUEST_ID });
+    session({ request: { id: REQUEST_ID, patient_id: PATIENT_ID, challenge_code: "K7Q2", setting: "home", expires_at: at(600), used_at: at(-39.99) } });
     expect(await checkSessionForUpload("tok", NOW)).toMatchObject({ ok: true });
   });
 
   it("already_submitted when a submission row exists", async () => {
     session({ submission: { id: "s1" } });
-    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "already_submitted" });
+    expect(await checkSessionForUpload("tok", NOW)).toEqual({ ok: false, reason: "already_submitted", requestId: REQUEST_ID });
   });
 });
 
@@ -125,6 +126,16 @@ describe("recordFraudRejection", () => {
       action: "submission.rejected_fraud",
       refId: REQUEST_ID,
       payload: { reason: "photo_already_used" },
+    });
+  });
+
+  it("accepts a null request id for an unknown link", async () => {
+    await recordFraudRejection(null, "invalid_link");
+    expect(mocks.appendAuditEvent).toHaveBeenCalledWith({
+      actor: "system",
+      action: "submission.rejected_fraud",
+      refId: null,
+      payload: { reason: "invalid_link" },
     });
   });
 

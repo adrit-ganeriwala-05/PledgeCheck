@@ -2,8 +2,9 @@
 // Every failure should end as submissions.status = "rejected_fraud", plus one
 // recordFraudRejection() call.
 //
-// These checks are strict: an upload needs an active session. The interim pipeline's
-// checkToken / consumeRequest (token.ts) and checkReuse (reuse.ts) keep working meanwhile.
+// These checks are strict: an upload needs an active session. POST /api/submissions uses
+// them; the older checkToken / consumeRequest (token.ts) and checkReuse (reuse.ts) remain
+// for compatibility only.
 import "server-only";
 
 import { appendAuditEvent } from "@/lib/audit/append";
@@ -28,8 +29,16 @@ const FRAUD_REASONS: readonly FraudReason[] = [
 ];
 
 export type SessionCheck =
-  | { ok: true; requestId: string; patientId: string; practiceId: string; expectedCode: string }
-  | { ok: false; reason: SessionFailure };
+  | {
+      ok: true;
+      requestId: string;
+      patientId: string;
+      practiceId: string;
+      expectedCode: string;
+      setting: "home" | "clinic";
+    }
+  /** requestId is null only for invalid_link (no request matches the token). */
+  | { ok: false; reason: SessionFailure; requestId: string | null };
 
 /**
  * Is this upload inside an active session? `now` exists for tests; callers omit it so the
@@ -40,11 +49,12 @@ export async function checkSessionForUpload(token: string, now: Date = new Date(
 
   const { data: request, error } = await admin
     .from("test_requests")
-    .select("id, patient_id, challenge_code, expires_at, used_at")
+    .select("id, patient_id, challenge_code, setting, expires_at, used_at")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
   if (error) throw new Error("could not read test request");
-  if (!request) return { ok: false, reason: "invalid_link" };
+  if (!request) return { ok: false, reason: "invalid_link", requestId: null };
+  const fail = (reason: SessionFailure): SessionCheck => ({ ok: false, reason, requestId: request.id });
 
   // Any submission row, with or without a photo: one upload per link.
   const { data: existing, error: existingError } = await admin
@@ -53,11 +63,11 @@ export async function checkSessionForUpload(token: string, now: Date = new Date(
     .eq("request_id", request.id)
     .maybeSingle();
   if (existingError) throw new Error("could not read submissions");
-  if (existing) return { ok: false, reason: "already_submitted" };
+  if (existing) return fail("already_submitted");
 
   const state = linkState({ expires_at: request.expires_at, used_at: request.used_at, submitted: false }, now);
-  if (state === "ready" || state === "link_expired") return { ok: false, reason: "session_not_started" };
-  if (state === "session_expired") return { ok: false, reason: "session_expired" };
+  if (state === "ready" || state === "link_expired") return fail("session_not_started");
+  if (state === "session_expired") return fail("session_expired");
 
   const { data: patient, error: patientError } = await admin
     .from("patients")
@@ -72,6 +82,7 @@ export async function checkSessionForUpload(token: string, now: Date = new Date(
     patientId: request.patient_id,
     practiceId: patient.practice_id,
     expectedCode: request.challenge_code.trim(),
+    setting: request.setting === "clinic" ? "clinic" : "home",
   };
 }
 
@@ -97,7 +108,7 @@ export async function checkPhotoReuse(
  * Best effort: logs and returns null on failure so the rejection itself still stands.
  */
 export async function recordFraudRejection(
-  requestId: string,
+  requestId: string | null,
   reason: FraudReason,
 ): Promise<{ seq: number; hash: string } | null> {
   if (!FRAUD_REASONS.includes(reason)) throw new Error("unknown fraud reason");

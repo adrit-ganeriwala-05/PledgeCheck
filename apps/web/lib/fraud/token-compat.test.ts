@@ -1,15 +1,25 @@
-// checkToken / consumeRequest: the interface the capture page and the submission
-// pipeline call, on top of the session model (lenient mode).
+// checkToken / consumeRequest: the older interface, kept for compatibility, on top of the
+// session model. Strict by default; lenient-mode behavior is tested via a switch.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mockSupabase, type QueryCall } from "@/test/supabase-mock";
 
-const { appendAuditEvent } = vi.hoisted(() => ({ appendAuditEvent: vi.fn() }));
+const { appendAuditEvent, mode } = vi.hoisted(() => ({ appendAuditEvent: vi.fn(), mode: { lenient: false } }));
 vi.mock("@/lib/audit/append", () => ({ appendAuditEvent }));
+// The real constant is read below; token.ts sees this switch so both modes stay tested.
+vi.mock("./session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./session")>();
+  return {
+    ...actual,
+    get ALLOW_UPLOAD_WITHOUT_START() {
+      return mode.lenient;
+    },
+  };
+});
 
 const { checkToken, consumeRequest, hashToken } = await import("./token");
-const { ALLOW_UPLOAD_WITHOUT_START } = await import("./session");
+const { ALLOW_UPLOAD_WITHOUT_START } = await vi.importActual<typeof import("./session")>("./session");
 
 const NOW = new Date("2026-09-26T15:00:00.000Z");
 const REQUEST_ID = "12000000-0000-0000-0000-000000000001";
@@ -53,9 +63,13 @@ beforeEach(() => {
   appendAuditEvent.mockResolvedValue({ seq: 1, hash: "0".repeat(64) });
 });
 
-describe("lenient mode", () => {
-  it("is on until the capture page calls Start", () => {
-    expect(ALLOW_UPLOAD_WITHOUT_START).toBe(true);
+afterEach(() => {
+  mode.lenient = false;
+});
+
+describe("mode", () => {
+  it("is strict: the capture page calls Start, so uploads need an active session", () => {
+    expect(ALLOW_UPLOAD_WITHOUT_START).toBe(false);
   });
 });
 
@@ -66,7 +80,7 @@ describe("checkToken(db, token, now)", () => {
     expect(d.queries.test_requests[0]).toContainEqual({ method: "eq", args: ["token_hash", hashToken("tok")] });
   });
 
-  it("is ok for a not-yet-started link (the interim page renders it)", async () => {
+  it("is ok for a not-yet-started link (ready)", async () => {
     const result = await checkToken(db().client, "tok", NOW);
     expect(result).toMatchObject({ ok: true, request: { id: REQUEST_ID, challenge_code: "K7Q2", used_at: null } });
   });
@@ -97,7 +111,15 @@ describe("consumeRequest(db, requestId, now)", () => {
     expect(appendAuditEvent).not.toHaveBeenCalled();
   });
 
+  it("strict: refuses a never-started session without touching used_at", async () => {
+    const d = db({ request: { id: REQUEST_ID, expires_at: at(600), used_at: null } });
+    expect(await consumeRequest(d.client, REQUEST_ID, NOW)).toBe(false);
+    expect(updates(d.queries)).toHaveLength(0);
+    expect(appendAuditEvent).not.toHaveBeenCalled();
+  });
+
   it("lenient: starts a never-started session at upload, once, and audits it", async () => {
+    mode.lenient = true;
     const d = db({ request: { id: REQUEST_ID, expires_at: at(600), used_at: null } });
     expect(await consumeRequest(d.client, REQUEST_ID, NOW)).toBe(true);
     const [update] = updates(d.queries);
@@ -111,7 +133,8 @@ describe("consumeRequest(db, requestId, now)", () => {
     });
   });
 
-  it("false when another upload already claimed the unstarted link", async () => {
+  it("lenient: false when another upload already claimed the unstarted link", async () => {
+    mode.lenient = true;
     const d = db({ request: { id: REQUEST_ID, expires_at: at(600), used_at: null }, claimed: [] });
     expect(await consumeRequest(d.client, REQUEST_ID, NOW)).toBe(false);
     expect(appendAuditEvent).not.toHaveBeenCalled();
@@ -128,7 +151,8 @@ describe("consumeRequest(db, requestId, now)", () => {
     expect(await consumeRequest(db({ request: null }).client, REQUEST_ID, NOW)).toBe(false);
   });
 
-  it("still claims when the session.started audit write fails", async () => {
+  it("lenient: still claims when the session.started audit write fails", async () => {
+    mode.lenient = true;
     vi.spyOn(console, "error").mockImplementation(() => {});
     appendAuditEvent.mockRejectedValue(new Error("down"));
     const d = db({ request: { id: REQUEST_ID, expires_at: at(600), used_at: null } });

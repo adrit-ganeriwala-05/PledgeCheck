@@ -6,11 +6,11 @@ signatures for the upload pipeline are in [`CONTRACT.md`](./CONTRACT.md).
 
 | File | What it does |
 |---|---|
-| `token.ts` | Generates and hashes link tokens. Also holds the interim `checkToken` / `consumeRequest`. |
+| `token.ts` | Generates and hashes link tokens. Also holds the older `checkToken` / `consumeRequest` (compatibility only). |
 | `code.ts` | Generates and compares the challenge code. |
 | `session.ts` | Link and session states, `startSession`, and the status the patient's phone sees. |
 | `checks.ts` | Fraud checks for `POST /api/submissions`, and `recordFraudRejection`. |
-| `reuse.ts` | pHash Hamming distance and the reuse scan. Also holds the interim `checkReuse`. |
+| `reuse.ts` | pHash Hamming distance and the reuse scan. Also holds the older `checkReuse` (compatibility only). |
 | `home-guards.ts` | The three refusals for home links. |
 | `rate-limit.ts` | Best-effort per-IP limit on the public link routes. |
 
@@ -68,16 +68,13 @@ distance to **any earlier submission, in any practice**, is **< 8** (`REUSE_DIST
 - The scan is linear, in pages of 1000. That's fine at hackathon scale; replace it with bucketing or a BK-tree at volume.
 - Tune the threshold on real test photos.
 
-## Interim compatibility (lenient mode)
+## Strict mode
 
-The merged pipeline and capture page still call the interim `checkToken`, `consumeRequest` and
-`checkReuse`. These keep their original signatures:
-- **Capture page:** it reveals the code on load, and has no Start button.
-- **Lenient mode:** until the page changes, `ALLOW_UPLOAD_WITHOUT_START = true` lets an upload on a
-  never-started link start the session at upload time. This is the same guarantee as before the
-  merge, not a regression.
-- **Switching to strict:** once the page calls `POST /api/t/:token/start`, set the flag to `false`,
-  so uploads need an active session, and move the pipeline to `checks.ts`.
+The capture page calls `POST /api/t/:token/start`, and the pipeline uses `checks.ts`, so every
+upload needs an active session (`ALLOW_UPLOAD_WITHOUT_START = false`).
+- The older `checkToken`, `consumeRequest` and `checkReuse` keep their signatures for
+  compatibility only.
+- Nothing in the app calls them.
 
 ## Threat model rows covered
 
@@ -98,8 +95,6 @@ or token enters the audit log.
   writes or overlays the code. pHash catches identical images, but not a new shot of a new
   composition. Screen and moiré detection isn't built.
 - **Rate limit:** it's per instance and in memory, so on serverless it's best effort.
-- **Lenient mode:** until the capture page has a Start button, the code is visible when the link is
-  opened, not when the session starts.
 
 ## Open decisions
 

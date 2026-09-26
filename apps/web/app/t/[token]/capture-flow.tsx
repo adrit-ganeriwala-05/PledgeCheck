@@ -216,7 +216,7 @@ export function CaptureFlow({
 
       if (!response.ok || data.received === false) {
         setFailure(patientMessage(data.reason, language));
-        setTerminal(TERMINAL_REASONS.includes(data.reason ?? ""));
+        setTerminal(isTerminalReason(data.reason));
         setFailedStep("send");
         setPhase("failed");
         return;
@@ -354,19 +354,39 @@ function Button({
 }
 
 /** Failures a new photo cannot fix: the link itself is spent. */
-const TERMINAL_REASONS = ["expired", "already_used", "not_found"];
+const TERMINAL_REASONS = [
+  "expired",
+  "already_used",
+  "not_found",
+  "invalid_link",
+  "session_not_started",
+  "session_expired",
+  "already_submitted",
+];
+
+export function isTerminalReason(reason: string | undefined): boolean {
+  return TERMINAL_REASONS.includes(reason ?? "");
+}
 
 /** Never tell the patient what the test read; only what to do next. */
-function patientMessage(reason: string | undefined, language: Language): string {
+export function patientMessage(reason: string | undefined, language: Language): string {
   const en: Record<string, string> = {
     expired: "This link has expired. Ask your clinic for a new one.",
     already_used: "This link was already used. Ask your clinic for a new one.",
     not_found: "This link is not valid. Ask your clinic for a new one.",
+    invalid_link: LINK_PROBLEM_TEXT.en.invalid,
+    session_not_started: "This test session was not started. Open the link again and tap Start.",
+    session_expired: LINK_PROBLEM_TEXT.en.session_expired,
+    already_submitted: LINK_PROBLEM_TEXT.en.submitted,
   };
   const es: Record<string, string> = {
     expired: "Este enlace ha caducado. Pida uno nuevo a su clínica.",
     already_used: "Este enlace ya fue usado. Pida uno nuevo a su clínica.",
     not_found: "Este enlace no es válido. Pida uno nuevo a su clínica.",
+    invalid_link: LINK_PROBLEM_TEXT.es.invalid,
+    session_not_started: "Esta sesión de prueba no se inició. Abra el enlace otra vez y toque Comenzar.",
+    session_expired: LINK_PROBLEM_TEXT.es.session_expired,
+    already_submitted: LINK_PROBLEM_TEXT.es.submitted,
   };
 
   const table = language === "es" ? es : en;

@@ -21,12 +21,11 @@ export const SESSION_MINUTES = 40;
 export const LINK_TTL_HOURS = 24;
 
 /**
- * Lenient mode, for the interim pipeline (checkToken / consumeRequest in token.ts):
- * an upload on a link whose session was never started starts it at upload time, as the
- * interim capture page has no Start button and shows the code on load. Set to false once
- * the capture page calls POST /api/t/:token/start; uploads then need an active session.
+ * Lenient mode for the older checkToken / consumeRequest (token.ts): when true, an upload
+ * on a never-started link starts the session at upload time. Off: the capture page calls
+ * POST /api/t/:token/start, and every upload needs an active session.
  */
-export const ALLOW_UPLOAD_WITHOUT_START = true;
+export const ALLOW_UPLOAD_WITHOUT_START = false;
 
 export type LinkState = "ready" | "active" | "session_expired" | "link_expired" | "submitted";
 

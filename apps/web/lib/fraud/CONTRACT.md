@@ -1,24 +1,34 @@
 # Fraud checks: contract for the submission pipeline
 
-For `POST /api/submissions` (Labib). All functions are server-only and import from
-`@/lib/fraud/checks`. Every failure below should set `submissions.status = "rejected_fraud"`
-(or create no submission at all) and call `recordFraudRejection(requestId, reason)` once, when a
-request id is known.
+Used by `POST /api/submissions`. All functions are server-only and import from
+`@/lib/fraud/checks`. Every failure ends as `submissions.status = "rejected_fraud"` (or
+`expired`, or no submission at all) and calls `recordFraudRejection(requestId, reason)` once.
 
 The **server stamps the time**. Never pass a timestamp from the client.
 
-## Order
+## Order in the pipeline
 
-1. `checkSessionForUpload(token)`: before inserting the submission row.
-2. `checkPhotoReuse(phash, { excludeSubmissionId })`: once the analyze service returns a phash.
-3. `checkChallengeCode(expectedCode, grok.code_read)`: once Grok has read the photo.
+Cheap checks come before any AI call:
+
+1. `checkSessionForUpload(token)`, before inserting the submission row. The insert itself is
+   the claim: a unique-violation (`23505`) on `request_id` means a concurrent upload won, and
+   the result is `already_submitted`.
+2. Both readers run (Grok and OpenCV).
+3. `checkPhotoReuse(phash, { excludeSubmissionId })`, on the analyze service's phash.
+4. `checkChallengeCode(expectedCode, grok.code_read)`, on Grok's read.
+
+Failures 3 and 4 become the blocking flags `photo_already_used` and `code_missing_or_wrong`. The
+rules engine then blocks, and the status is `rejected_fraud`. If the reuse check itself fails, the
+pipeline adds the non-blocking flag `reuse_check_unavailable` for the prescriber.
 
 ## `checkSessionForUpload(token: string, now?: Date)`
 
 ```ts
 Promise<
-  | { ok: true; requestId: string; patientId: string; practiceId: string; expectedCode: string }
-  | { ok: false; reason: "invalid_link" | "session_not_started" | "session_expired" | "already_submitted" }
+  | { ok: true; requestId: string; patientId: string; practiceId: string; expectedCode: string;
+      setting: "home" | "clinic" }
+  | { ok: false; reason: "invalid_link" | "session_not_started" | "session_expired" | "already_submitted";
+      requestId: string | null }   // null only for invalid_link
 >
 ```
 
@@ -26,14 +36,14 @@ An upload is accepted only while the session is **active**: the patient tapped S
 (`POST /api/t/:token/start`) less than `SESSION_MINUTES` (40) ago. The result is `already_submitted` as soon as any
 `submissions` row exists for the request, so call this **before** inserting one.
 
-| reason | meaning | HTTP suggestion |
+| reason | meaning | pipeline answer |
 |---|---|---|
-| `invalid_link` | unknown token | 410 |
-| `session_not_started` | Start never tapped (including links that expired unstarted) | 409 |
-| `session_expired` | more than 40 min since Start; the patient needs a new link | 410 |
-| `already_submitted` | a submission exists for this link | 410 |
+| `invalid_link` | unknown token | 410, status `rejected_fraud` |
+| `session_not_started` | Start never tapped (including links that expired unstarted) | 410, status `rejected_fraud` |
+| `session_expired` | more than 40 min since Start; the patient needs a new link | 410, status `expired` |
+| `already_submitted` | a submission exists for this link | 410, status `rejected_fraud` |
 
-`now` exists for tests only. Throws on a database error; answer 500.
+`now` exists for tests only. Throws on a database error; the pipeline answers 500.
 
 ## `checkChallengeCode(expected: string, codeRead: string | null)`
 
@@ -41,8 +51,7 @@ An upload is accepted only while the session is **active**: the patient tapped S
 { ok: true } | { ok: false; reason: "code_missing_or_wrong" }
 ```
 
-Trims, uppercases and removes spaces, then compares exactly. A null or empty read fails. The rules
-engine already blocks on a wrong code; this is the same comparison and can replace it.
+Trims, uppercases and removes spaces, then compares exactly. A null or empty read fails.
 
 ## `checkPhotoReuse(phash: string, opts?: { excludeSubmissionId?: string })`
 
@@ -55,17 +64,18 @@ Promise<{ ok: true } | { ok: false; reason: "photo_already_used"; matchedSubmiss
 - Pass the current submission id as `excludeSubmissionId` when its row already holds the hash.
 - Throws `PhashFormatError` on a malformed hash and a plain `Error` on a database error.
 
-## `recordFraudRejection(requestId: string, reason: FraudReason)`
+## `recordFraudRejection(requestId: string | null, reason: FraudReason)`
 
 Writes the `submission.rejected_fraud` audit event with payload `{ reason }` only. It never contains the phash, the code or the token.
 
+- `requestId` is `null` only for `invalid_link`.
 - `reason` must be one of the six reasons above; any other string throws.
 - It is best effort: it logs and returns `null` if the audit write fails, and the rejection still stands.
 
-## Interim interface (kept so the current pipeline runs unchanged)
+## Older interface (compatibility only)
 
-These keep the names and signatures from `labib/p0-integrated`. They are in **lenient mode**
-(`ALLOW_UPLOAD_WITHOUT_START = true` in `session.ts`) until the capture page has a Start button.
+Nothing in the app calls these any more. They keep the names and signatures from
+`labib/p0-integrated`, and run in **strict mode** (`ALLOW_UPLOAD_WITHOUT_START = false` in `session.ts`).
 
 - `checkToken(db, token, now)` (`@/lib/fraud/token`):
   - ok for a link that hasn't started (`ready`) or is `active`;
@@ -74,10 +84,7 @@ These keep the names and signatures from `labib/p0-integrated`. They are in **le
   - `not_found` for an unknown token.
 - `consumeRequest(db, requestId, now)`:
   - true once per link, when no submission row exists yet and the session is active;
-  - in lenient mode, also true for a link whose session never started, and it starts the session now.
+  - with the flag set to `true`, also true for a never-started link, and it starts the session.
 - `checkReuse(db, phash, excludeSubmissionId?)` (`@/lib/fraud/reuse`):
   - `{ reused, matchedSubmissionId?, distance? }` with the same `< 8` threshold;
   - a malformed hash or a failed read is logged and reported as not reused.
-
-When the capture page switches to `POST /api/t/:token/start`, set `ALLOW_UPLOAD_WITHOUT_START`
-to `false` and, preferably, move the pipeline to the functions above.
