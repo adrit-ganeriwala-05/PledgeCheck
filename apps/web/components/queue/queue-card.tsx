@@ -1,14 +1,17 @@
 "use client";
 
+import { TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
+import { cn } from "@/lib/utils";
 
+import { FlagBadges } from "./flag-badges";
 import { PhotoViewer } from "./photo-viewer";
 import { ReadersPanel } from "./readers-panel";
 import { ReviewActions, type ReviewOutcome } from "./review-actions";
+import { closerReviewReasons } from "./review-reasons";
 import { WindowCountdown } from "./window-countdown";
 
 const REVIEW_ERRORS: Record<string, string> = {
@@ -39,12 +42,35 @@ export function QueueCard({ card, onReviewed }: Props) {
     );
   }
 
+  const needsReview = card.status === "needs_review";
+  const reasons = needsReview ? closerReviewReasons(card) : [];
+
   return (
-    <Card aria-labelledby={`card-title-${card.submissionId}`}>
+    <Card
+      aria-labelledby={`card-title-${card.submissionId}`}
+      data-status={card.status}
+      className={cn(needsReview && "border-2 border-amber-500 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/30")}
+    >
       <CardHeader>
+        {needsReview ? (
+          <div className="mb-2 rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-amber-950 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-100">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <TriangleAlertIcon className="size-4" aria-hidden />
+              Needs closer review
+            </p>
+            {reasons.length > 0 ? (
+              <ul className="mt-1 list-disc pl-5 text-sm">
+                {reasons.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mb-1 text-sm font-medium text-muted-foreground">Ready for review</p>
+        )}
         <CardTitle id={`card-title-${card.submissionId}`} className="flex flex-wrap items-center gap-2">
           <span>{card.patient.pseudonym}</span>
-          <Badge variant="outline">{card.status === "needs_review" ? "Needs closer review" : "Ready for review"}</Badge>
           <span className="text-sm font-normal text-muted-foreground">
             phase {card.patient.phase} · {card.patient.language.toUpperCase()}
           </span>
@@ -54,15 +80,7 @@ export function QueueCard({ card, onReviewed }: Props) {
         <PhotoViewer url={card.photoUrl} pseudonym={card.patient.pseudonym} />
         <div className="space-y-4">
           <ReadersPanel card={card} />
-          {card.flags.length > 0 ? (
-            <ul aria-label="Flags" className="flex flex-wrap gap-1.5">
-              {card.flags.map((flag) => (
-                <li key={flag}>
-                  <Badge variant="secondary">{flag}</Badge>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <FlagBadges flags={card.flags} />
           <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
           {card.canReview ? (
             <ReviewActions submissionId={card.submissionId} pseudonym={card.patient.pseudonym} onDone={handleDone} />
