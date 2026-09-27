@@ -51,7 +51,14 @@ export function PortalAuthForm() {
     try {
       const supabase = createClient();
       if (mode === "signup") {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+        // emailRedirectTo pins the confirmation link to this origin. Without it Supabase
+        // uses the project's Site URL, and if that forwards anywhere the session fragment
+        // is dropped on the hop and the link appears broken.
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/portal/confirm` },
+        });
         if (signUpError) {
           setError(BAD_CREDENTIALS);
           setPending(false);
