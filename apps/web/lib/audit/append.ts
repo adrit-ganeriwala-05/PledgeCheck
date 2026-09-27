@@ -2,7 +2,7 @@
 //
 // The head is read, the next hash computed here (see hash.ts for the spec), and the row
 // inserted through the audit_append RPC, which rejects a stale head with
-// 'audit_chain_conflict' (40001). On conflict we re-read the head and retry.
+// 'audit_chain_conflict' (PT409). On conflict we re-read the head and retry.
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -100,8 +100,19 @@ export function validateAuditInput(input: AppendAuditEventInput): {
 
 type RpcError = { code?: string; message?: string } | null;
 
+// PT409 is what audit_append raises for a stale head or a lost insert race; PostgREST
+// turns it into HTTP 409. 23505 covers a function old enough to let the primary key
+// violation surface raw. 40001 is only reachable over a direct Postgres connection: via
+// PostgREST that code is retried internally and never reaches us, which is why
+// audit_append no longer uses it (see db/audit.sql). All three mean the same thing here.
 function isChainConflict(error: RpcError): boolean {
-  return !!error && (error.code === "40001" || /audit_chain_conflict/.test(error.message ?? ""));
+  return (
+    !!error &&
+    (error.code === "PT409" ||
+      error.code === "23505" ||
+      error.code === "40001" ||
+      /audit_chain_conflict/.test(error.message ?? ""))
+  );
 }
 
 function backoff(attempt: number): Promise<void> {

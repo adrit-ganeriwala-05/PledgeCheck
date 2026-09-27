@@ -11,6 +11,7 @@
 // clinician id passed here is a prescriber in the submission's practice.
 import { NextResponse } from "next/server";
 
+import { recordAccessEvent } from "@/lib/analytics/tiger";
 import { getClinician } from "@/lib/clinic/auth";
 import {
   mapSubmitReviewError,
@@ -112,6 +113,23 @@ export async function POST(request: Request) {
     console.error("[reviews] AUDIT EVENT NOT WRITTEN — review is recorded but missing from the audit log", {
       submissionId,
       decision,
+      cause: err instanceof Error ? err.message : "unknown",
+    });
+  }
+
+  // De-identified analytics: practice and outcome, never a patient. The decision is
+  // already saved, so nothing here may change the response. recordAccessEvent handles
+  // its own failures, and the try is the belt to that braces: a prescriber must never
+  // lose a decision to the warehouse. Awaited rather than floated, because a serverless
+  // function can freeze before a detached promise runs.
+  try {
+    await recordAccessEvent({
+      practiceId: auth.clinician.practiceId,
+      event: decision === "approved" ? "verified" : "rejected",
+    });
+  } catch (err) {
+    console.error("[reviews] access event not recorded", {
+      submissionId,
       cause: err instanceof Error ? err.message : "unknown",
     });
   }

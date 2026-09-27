@@ -88,12 +88,21 @@ export async function POST(request: Request) {
   );
 
   if (practice?.practice_id) {
-    await recordAccessEvent({
-      practiceId: practice.practice_id,
-      event: "filled",
-      daysToFill,
-      time: now,
-    });
+    // The fill is already saved; analytics must not be able to undo it. See the same
+    // guard in app/api/reviews/route.ts.
+    try {
+      await recordAccessEvent({
+        practiceId: practice.practice_id,
+        event: "filled",
+        daysToFill,
+        time: now,
+      });
+    } catch (err) {
+      console.error("[windows/fill] access event not recorded", {
+        windowId,
+        cause: err instanceof Error ? err.message : "unknown",
+      });
+    }
   }
 
   return NextResponse.json({ ok: true, daysToFill });

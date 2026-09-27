@@ -11,12 +11,14 @@ const mocks = vi.hoisted(() => ({
   adminClient: null as unknown,
   openApprovalWindow: vi.fn(),
   append: vi.fn(),
+  recordAccessEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => mocks.userClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.adminClient }));
 vi.mock("@/lib/integrations/window", () => ({ openApprovalWindow: mocks.openApprovalWindow }));
 vi.mock("@/lib/integrations/audit", () => ({ append: mocks.append }));
+vi.mock("@/lib/analytics/tiger", () => ({ recordAccessEvent: mocks.recordAccessEvent }));
 
 const { POST } = await import("./route");
 
@@ -76,6 +78,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   mocks.openApprovalWindow.mockResolvedValue(WINDOW);
   mocks.append.mockResolvedValue(undefined);
+  mocks.recordAccessEvent.mockResolvedValue(true);
 });
 
 describe("POST /api/reviews — auth", () => {
@@ -274,5 +277,38 @@ describe("POST /api/reviews — after the decision is saved", () => {
     expect(await res.json()).toEqual({ error: "audit_failed", reviewRecorded: true });
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("AUDIT EVENT NOT WRITTEN"), expect.anything());
     expect(admin.remove).toHaveBeenCalledWith([PHOTO]);
+  });
+});
+
+describe("POST /api/reviews — access analytics", () => {
+  const PRACTICE = "10000000-0000-0000-0000-000000000000";
+
+  it("records a verified event on approval, with no patient in it", async () => {
+    setup();
+    await POST(request({ submissionId: SUB, decision: "approved" }));
+    expect(mocks.recordAccessEvent).toHaveBeenCalledTimes(1);
+    const [event] = mocks.recordAccessEvent.mock.calls[0] as [Record<string, unknown>];
+    expect(event).toEqual({ practiceId: PRACTICE, event: "verified" });
+    expect(JSON.stringify(event)).not.toContain(PATIENT);
+    expect(JSON.stringify(event)).not.toContain(SUB);
+  });
+
+  it("records a rejected event on rejection", async () => {
+    setup({ rpc: { data: { status: "rejected", window: null }, error: null } });
+    await POST(request({ submissionId: SUB, decision: "rejected", reason: "blurry" }));
+    expect(mocks.recordAccessEvent).toHaveBeenCalledWith({ practiceId: PRACTICE, event: "rejected" });
+  });
+
+  it("does not record anything when the review never happened", async () => {
+    setup({ role: "staff", userId: STAFF });
+    await POST(request({ submissionId: SUB, decision: "approved" }));
+    expect(mocks.recordAccessEvent).not.toHaveBeenCalled();
+  });
+
+  it("a warehouse failure does not fail the review", async () => {
+    setup();
+    mocks.recordAccessEvent.mockRejectedValue(new Error("tiger down"));
+    const res = await POST(request({ submissionId: SUB, decision: "approved" }));
+    expect(res.status).toBe(200);
   });
 });
