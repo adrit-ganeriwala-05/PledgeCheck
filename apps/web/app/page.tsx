@@ -1,11 +1,29 @@
+import type { Metadata } from "next";
+
+import { Closing, Footer, HowItWorks, LandingNav, Privacy, Problem, Trust } from "@/components/landing/sections";
+import { SmoothScroll } from "@/components/landing/smooth-scroll";
+import { Story } from "@/components/landing/story";
+
+export const metadata: Metadata = {
+  title: "PledgeCheck · iPLEDGE pregnancy tests at home",
+  description:
+    "At-home iPLEDGE pregnancy tests that can't be faked: a challenge code, two independent readers, photo-reuse checks and a hash-linked audit chain, with the prescriber's decision on every test.",
+};
+
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-6 py-24">
-      <h1 className="text-3xl font-semibold tracking-tight">PledgeCheck</h1>
-      <p className="text-lg text-zinc-600 dark:text-zinc-400">
-        At-home iPLEDGE pregnancy tests with fraud checks, two independent reads and a
-        dermatologist&apos;s decision on every result.
-      </p>
-    </main>
+    <>
+      <SmoothScroll />
+      <LandingNav />
+      <main>
+        <Story />
+        <Problem />
+        <HowItWorks />
+        <Trust />
+        <Privacy />
+        <Closing />
+      </main>
+      <Footer />
+    </>
   );
 }

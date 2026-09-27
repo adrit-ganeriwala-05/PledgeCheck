@@ -32,7 +32,7 @@ export default function LoginPage() {
           height={1800}
           priority
           sizes="55vw"
-          className="w-full scale-110 object-contain"
+          className="w-full scale-110 object-contain [mask-image:radial-gradient(closest-side,black_72%,transparent)]"
         />
       </div>
     </main>

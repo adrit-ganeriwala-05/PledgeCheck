@@ -36,7 +36,7 @@ export const VIEWS: Record<View, { camera: [number, number, number]; fov: number
   instruction: { camera: [0, 34, 14], fov: 22, yaw: 0, pitch: 0, offset: [0.3, 0.14, 0], focus: 36 },
 };
 
-const REST_Y = 0.15;
+export const REST_Y = 0.15;
 
 const DPR: Record<Quality, [number, number] | number> = { high: [1, 2], medium: [1, 1.5], low: 1 };
 
@@ -65,7 +65,7 @@ export function Scene(props: SceneProps) {
 }
 
 /** AgX tone mapping, sRGB output. With post-processing, tone mapping moves to the last effect. */
-function Renderer({ tier }: { tier: Quality }) {
+export function Renderer({ tier }: { tier: Quality }) {
   const toneMapping = tier === "high" ? THREE.NoToneMapping : THREE.AgXToneMapping;
   useFrame(({ gl }) => {
     if (gl.toneMapping === toneMapping) return;
@@ -137,7 +137,7 @@ function Rig({ view, lineProgress, showCode, code, interactive, autoRotate, drag
 }
 
 /** Tells the wrapper when real frames are on screen, so the poster can hand over without a pop. */
-function ReadySignal({ onReady }: { onReady: () => void }) {
+export function ReadySignal({ onReady }: { onReady: () => void }) {
   const frames = useRef(0);
   const done = useRef(false);
   const invalidate = useThree((s) => s.invalidate);

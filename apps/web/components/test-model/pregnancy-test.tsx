@@ -18,14 +18,20 @@ import { codeInk, dyeLine, markings, paperRoughness, plasticNormal, wickFront, w
 
 export type Quality = "high" | "medium" | "low";
 
+/** A number, or anything with get() (a Motion value), read every frame without re-rendering. */
+export type Driven = number | { get(): number };
+const read = (v: Driven) => (typeof v === "number" ? v : v.get());
+
 export type PregnancyTestProps = {
   /** 0-1: liquid wicks along the strip, then the control line's dye develops. */
-  lineProgress?: number;
+  lineProgress?: Driven;
   /** 0-1: the cap lifts off and slides away, showing the absorbent tip. */
-  capLift?: number;
+  capLift?: Driven;
   /** Show the code area beside the window: the handwritten code, or empty dashes when code is null. */
   showCode?: boolean;
   code?: string | null;
+  /** 0-1: how much of the handwritten code has been written (fades the ink in). */
+  codeReveal?: Driven;
   quality?: Quality;
 } & Omit<ThreeElements["group"], "children">;
 
@@ -201,6 +207,7 @@ export function PregnancyTest({
   capLift = 0,
   showCode = false,
   code = null,
+  codeReveal = 1,
   quality = "medium",
   ...group
 }: PregnancyTestProps) {
@@ -221,14 +228,17 @@ export function PregnancyTest({
   const capRef = useRef<THREE.Mesh>(null);
   const frontRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
   const lineRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
-  const progress = useRef(lineProgress);
-  const lift = useRef(capLift);
+  const inkRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
+  const progress = useRef<number | null>(null);
+  const lift = useRef<number | null>(null);
 
   // Weighted easing toward the targets: physical, never bouncy.
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
-    progress.current = THREE.MathUtils.damp(progress.current, lineProgress, 2.4, dt);
-    lift.current = THREE.MathUtils.damp(lift.current, capLift, 3, dt);
+    const targetLine = read(lineProgress);
+    const targetLift = read(capLift);
+    progress.current = THREE.MathUtils.damp(progress.current ?? targetLine, targetLine, 2.4, dt);
+    lift.current = THREE.MathUtils.damp(lift.current ?? targetLift, targetLift, 3, dt);
     const p = progress.current;
 
     // Liquid front runs along the strip in the first half, then fades as it passes.
@@ -241,12 +251,14 @@ export function PregnancyTest({
     // Control line develops once the liquid has passed it.
     if (lineRef.current) lineRef.current.material.opacity = THREE.MathUtils.smoothstep(p, 0.38, 1);
 
+    if (inkRef.current) inkRef.current.material.opacity = THREE.MathUtils.clamp(read(codeReveal), 0, 1);
+
     const l = lift.current;
     if (capRef.current) {
       capRef.current.position.set(-2.6 * l, 1.1 * Math.sin(l * Math.PI * 0.5), 0);
       capRef.current.rotation.z = 0.12 * l;
     }
-    if (Math.abs(p - lineProgress) > 0.001 || Math.abs(l - capLift) > 0.001) state.invalidate();
+    if (Math.abs(p - targetLine) > 0.001 || Math.abs(l - targetLift) > 0.001) state.invalidate();
   });
 
   return (
@@ -272,7 +284,7 @@ export function PregnancyTest({
         {/* Absorbent tip, hidden under the cap until it lifts. */}
         <RoundedBox name="Wick" args={[2.7, 0.42, 1.5]} radius={0.14} smoothness={4} position={[-4.75, THICK / 2, 0]} material={materials.wick} />
         {ink ? (
-          <mesh position={[2.3, THICK + 0.003, 0]} rotation-x={-Math.PI / 2} material={ink}>
+          <mesh ref={inkRef} position={[2.3, THICK + 0.003, 0]} rotation-x={-Math.PI / 2} material={ink}>
             <planeGeometry args={[2.1, 1.05]} />
           </mesh>
         ) : null}
