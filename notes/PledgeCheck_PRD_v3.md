@@ -6,7 +6,7 @@ Sep 27, 2026 · @Adrit Ganeriwala
 
 PledgeCheck v3 turns monthly iPLEDGE pregnancy testing into a self-service loop: the patient requests a refill in a portal, the clinic approves, a one-time test link is emailed automatically, and the verified result opens a 7-day pickup window.
 
-Isotretinoin causes severe birth defects, so iPLEDGE requires patients who can become pregnant to test every month before each prescription. The FDA's February 2026 change (effective August 2026) allows at-home tests but requires prescribers to prevent misreading and falsification, without saying how. PledgeCheck is that process.
+Isotretinoin causes severe birth defects, so iPLEDGE requires patients who can become pregnant to test every month before each prescription. The FDA's February 2026 change (taking effect in November 2026) will allow at-home tests but require prescribers to prevent misreading and falsification, without saying how. PledgeCheck is that process.
 
 **What changes from v2**
 
