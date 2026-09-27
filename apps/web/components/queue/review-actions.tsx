@@ -66,46 +66,47 @@ export function ReviewActions({ submissionId, pseudonym, onDone, ref }: Props) {
 
   return (
     <div className="space-y-3" aria-busy={pending !== null}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={pending !== null}
-            onClick={() => decide("approved")}
-            aria-label={`Approve test for ${pseudonym}`}
-          >
-            {pending === "approved" ? (
-              <>
-                <Loader2Icon className="animate-spin" aria-hidden /> Approving…
-              </>
-            ) : (
-              "Approve"
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground">Approve opens the 7-day pickup window and deletes the photo.</p>
-        </div>
-        <div className="space-y-1">
-          <Button
-            className="w-full"
-            size="lg"
-            variant="outline"
-            disabled={pending !== null}
-            aria-expanded={rejecting}
-            aria-controls={reasonId}
-            onClick={() => setRejecting((v) => !v)}
-            aria-label={`Reject test for ${pseudonym}`}
-          >
-            Reject
-          </Button>
-          <p className="text-xs text-muted-foreground">Reject records your reason and deletes the photo; the clinic follows up.</p>
-        </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button
+          className="w-full justify-between"
+          size="lg"
+          disabled={pending !== null}
+          onClick={() => decide("approved")}
+          aria-label={`Approve test for ${pseudonym}`}
+        >
+          {pending === "approved" ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2Icon className="animate-spin" aria-hidden /> Approving…
+            </span>
+          ) : (
+            <>
+              <span>Approve test</span>
+              <Kbd tone="dark">A</Kbd>
+            </>
+          )}
+        </Button>
+        <Button
+          className="w-full justify-between"
+          size="lg"
+          variant="outline"
+          disabled={pending !== null}
+          aria-expanded={rejecting}
+          aria-controls={reasonId}
+          onClick={() => setRejecting((v) => !v)}
+          aria-label={`Reject test for ${pseudonym}`}
+        >
+          <span>Reject test</span>
+          <Kbd>R</Kbd>
+        </Button>
       </div>
+      <p className="text-xs text-haze">
+        Approving opens the 7-day fill window. Rejecting records your reason. Either way the photo is deleted.
+      </p>
 
       {rejecting ? (
         <form
           id={reasonId}
-          className="space-y-2"
+          className="space-y-2 rounded-lg border border-line bg-ink/40 p-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (reason.trim()) void decide("rejected");
@@ -136,5 +137,20 @@ export function ReviewActions({ submissionId, pseudonym, onDone, ref }: Props) {
         </form>
       ) : null}
     </div>
+  );
+}
+
+function Kbd({ children, tone = "light" }: { children: React.ReactNode; tone?: "light" | "dark" }) {
+  return (
+    <kbd
+      aria-hidden
+      className={
+        tone === "dark"
+          ? "inline-grid size-6 place-items-center rounded-md bg-black/15 text-xs font-semibold"
+          : "inline-grid size-6 place-items-center rounded-md border border-line text-xs font-semibold text-haze"
+      }
+    >
+      {children}
+    </kbd>
   );
 }

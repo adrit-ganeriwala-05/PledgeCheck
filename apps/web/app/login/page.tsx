@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+
+import { Wordmark } from "@/components/brand/wordmark";
 
 import { LoginForm } from "./login-form";
 
@@ -6,13 +9,17 @@ export const metadata: Metadata = { title: "Sign in · PledgeCheck" };
 
 export default function LoginPage() {
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <header className="space-y-1">
-        <p className="text-sm font-semibold tracking-widest text-muted-foreground uppercase">PledgeCheck</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Clinic sign in</h1>
-        <p className="text-sm text-muted-foreground">For prescribers and clinic staff.</p>
-      </header>
-      <LoginForm />
+    <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-16">
+      <div className="relative w-full max-w-sm space-y-8">
+        <Link href="/" className="inline-block rounded-md" aria-label="PledgeCheck home">
+          <Wordmark />
+        </Link>
+        <header className="space-y-2">
+          <h1 className="text-4xl font-semibold">Clinic sign in</h1>
+          <p className="text-sm text-haze">For prescribers and clinic staff.</p>
+        </header>
+        <LoginForm />
+      </div>
     </main>
   );
 }

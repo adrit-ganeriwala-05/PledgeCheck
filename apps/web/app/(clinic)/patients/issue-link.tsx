@@ -62,7 +62,7 @@ export function IssueLink({ patientId, pseudonym }: { patientId: string; pseudon
         </Button>
       </div>
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="max-w-56 text-sm text-stop">
           {error}
         </p>
       )}

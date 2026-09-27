@@ -26,19 +26,19 @@ export default async function PatientsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Patients</h1>
-        <p className="text-sm text-muted-foreground">
+    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:py-10">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Patients</h1>
+        <p className="max-w-2xl text-sm text-haze">
           Issue a one-time test link. The challenge code stays hidden until the patient taps Start.
         </p>
       </header>
       {patients ? (
         <PatientsTable patients={patients} />
       ) : (
-        <div role="alert" className="rounded-md border p-6 text-sm">
+        <div role="alert" className="rounded-2xl border border-stop/40 bg-stop/5 p-6 text-sm text-mist">
           Could not load patients.{" "}
-          <Link href="/patients" className="underline">
+          <Link href="/patients" className="text-orchid-text underline">
             Try again
           </Link>
         </div>

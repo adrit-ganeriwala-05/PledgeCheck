@@ -41,24 +41,24 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-      <label className="flex flex-col gap-1 text-sm font-medium">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-mist">
         Email
         <input
           name="email"
           type="email"
           autoComplete="email"
           required
-          className="rounded-md border px-3 py-2 text-base font-normal"
+          className="h-11 rounded-lg border border-input bg-ink px-3 text-base font-normal text-mist transition-colors placeholder:text-haze focus-visible:border-orchid focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-orchid/30"
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-mist">
         Password
         <input
           name="password"
           type="password"
           autoComplete="current-password"
           required
-          className="rounded-md border px-3 py-2 text-base font-normal"
+          className="h-11 rounded-lg border border-input bg-ink px-3 text-base font-normal text-mist transition-colors placeholder:text-haze focus-visible:border-orchid focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-orchid/30"
         />
       </label>
       {error && (
@@ -66,7 +66,7 @@ export function LoginForm() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" size="lg" variant="brand" className="mt-1" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

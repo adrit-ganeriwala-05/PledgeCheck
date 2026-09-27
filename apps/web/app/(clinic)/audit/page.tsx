@@ -44,10 +44,10 @@ export default async function AuditPage({ searchParams }: PageProps<"/audit">) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
+    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:py-10">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Audit log</h1>
+        <p className="max-w-2xl text-sm text-haze">
           Every clinic action, hash-chained. Verify recomputes the chain and checks it against the fingerprints
           anchored on Solana devnet.
         </p>
@@ -55,14 +55,14 @@ export default async function AuditPage({ searchParams }: PageProps<"/audit">) {
       {data ? (
         <AuditScreen {...data} initialHighlight={seq} />
       ) : (
-        <div role="alert" className="rounded-md border p-6 text-sm">
+        <div role="alert" className="rounded-2xl border border-stop/40 bg-stop/5 p-6 text-sm text-mist">
           Could not load the audit log.{" "}
-          <Link href="/audit" className="underline">
+          <Link href="/audit" className="text-orchid-text underline">
             Try again
           </Link>
         </div>
       )}
-      <footer className="border-t pt-4 text-xs text-muted-foreground">{HONESTY_FOOTNOTE}</footer>
+      <footer className="border-t border-line pt-4 text-xs text-haze">{HONESTY_FOOTNOTE}</footer>
     </main>
   );
 }

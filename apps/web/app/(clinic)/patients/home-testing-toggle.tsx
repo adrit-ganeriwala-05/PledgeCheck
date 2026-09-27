@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function HomeTestingToggle({
   patientId,
@@ -46,19 +46,32 @@ export function HomeTestingToggle({
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button
+      <button
         type="button"
-        size="sm"
-        variant={allowed ? "secondary" : "outline"}
         aria-pressed={allowed}
         aria-label={`Home testing for ${pseudonym}: ${allowed ? "on" : "off"}`}
         disabled={pending}
         onClick={toggle}
+        className="group inline-flex h-9 items-center gap-2 rounded-full pr-1 text-sm font-medium text-mist disabled:opacity-60"
       >
-        {pending ? "Saving…" : allowed ? "On" : "Off"}
-      </Button>
+        <span
+          aria-hidden
+          className={cn(
+            "relative h-6 w-10 rounded-full border transition-colors duration-200",
+            allowed ? "border-orchid bg-orchid/35" : "border-input bg-raised",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 left-0.5 size-4.5 rounded-full transition-transform duration-200 ease-weighted",
+              allowed ? "translate-x-4 bg-mist" : "bg-haze",
+            )}
+          />
+        </span>
+        <span className={cn("w-12 text-left", !allowed && "text-haze")}>{pending ? "Saving…" : allowed ? "On" : "Off"}</span>
+      </button>
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="max-w-48 text-sm text-stop">
           {error}
         </p>
       )}

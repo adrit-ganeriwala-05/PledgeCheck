@@ -7,24 +7,32 @@ import { cn } from "@/lib/utils";
 import { describeReason, verifyHeadline, type VerifyTone } from "./format";
 import type { VerifyResponse } from "./types";
 
+// The big badge text. "Chain verified" appears only when the server's verify says intact.
+const BADGE: Record<VerifyTone, string> = {
+  ok: "Chain verified",
+  bad: "Tampering detected",
+  warn: "Not verified",
+  none: "Not anchored",
+};
+
 const TONE: Record<VerifyTone, { className: string; Icon: typeof ShieldCheck; label: string }> = {
   ok: {
-    className: "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100",
+    className: "border-ok/40 bg-ok/5 text-mist [--tone:var(--ok)]",
     Icon: ShieldCheck,
     label: "Verified",
   },
   bad: {
-    className: "border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100",
+    className: "border-stop/50 bg-stop/5 text-mist [--tone:var(--stop)]",
     Icon: ShieldX,
     label: "Tampered",
   },
   warn: {
-    className: "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100",
+    className: "border-warn/45 bg-warn/5 text-mist [--tone:var(--warn)]",
     Icon: TriangleAlert,
     label: "Not verified",
   },
   none: {
-    className: "border-border bg-muted/40 text-foreground",
+    className: "border-line bg-surface text-mist [--tone:var(--haze)]",
     Icon: CircleDashed,
     label: "Not anchored",
   },
@@ -40,10 +48,16 @@ export function VerifyPanel({ result }: { result: VerifyResponse }) {
       role={tone === "bad" ? "alert" : "status"}
       aria-label="Verification result"
       data-tone={tone}
-      className={cn("flex gap-3 rounded-lg border p-4 text-sm", className)}
+      className={cn("flex flex-col gap-4 rounded-2xl border p-5 text-sm sm:flex-row sm:items-start", className)}
     >
-      <Icon aria-hidden className="mt-0.5 size-5 shrink-0" />
-      <div className="space-y-1">
+      <p
+        aria-hidden
+        className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-(--tone)/50 px-4 py-2 font-display text-lg font-semibold text-(--tone)"
+      >
+        <Icon className="size-5" />
+        {BADGE[tone]}
+      </p>
+      <div className="space-y-1 text-mist">
         <p className="font-semibold">
           <span className="sr-only">{label}: </span>
           {title}
@@ -61,7 +75,7 @@ export function VerifyPanel({ result }: { result: VerifyResponse }) {
         )}
         {result.anchor && (
           <p>
-            <a href={result.anchor.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline">
+            <a href={result.anchor.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-orchid-text underline">
               Anchor for seq {result.headSeq} on Solana Explorer
               <ExternalLink aria-hidden className="size-3.5" />
               <span className="sr-only">(opens in a new tab)</span>

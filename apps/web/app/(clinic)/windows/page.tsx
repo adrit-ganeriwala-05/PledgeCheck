@@ -17,7 +17,7 @@ export default async function WindowsPage() {
   if (!auth.ok) {
     return (
       <Shell>
-        <p className="rounded-lg border border-[var(--pc-line)] p-4 text-[var(--pc-muted)]">
+        <p className="rounded-2xl border border-line bg-surface p-5 text-haze">
           {auth.error === "unauthenticated"
             ? "Sign in to see this practice's pickup windows."
             : "This account is not a clinician."}
@@ -37,8 +37,8 @@ export default async function WindowsPage() {
   if (error) {
     return (
       <Shell>
-        <p className="rounded-lg bg-red-50 p-4 text-[var(--pc-stop)]">
-          Could not load windows: {error.message}
+        <p role="alert" className="rounded-2xl border border-stop/40 bg-stop/5 p-5 text-mist">
+          Could not load windows: {error.message}. Reload the page to try again.
         </p>
       </Shell>
     );
@@ -78,13 +78,10 @@ export default async function WindowsPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-10">
-      <header className="mb-6">
-        <p className="text-sm font-semibold tracking-widest text-[var(--pc-brand)] uppercase">
-          PledgeCheck
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold">Pickup windows</h1>
-        <p className="mt-1 text-[var(--pc-muted)]">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-10">
+      <header className="mb-6 space-y-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Fill windows</h1>
+        <p className="max-w-2xl text-sm text-haze">
           Sorted by time left. A first prescription that misses its window needs a repeat
           test in a medical setting, with no waiting period.
         </p>

@@ -51,7 +51,7 @@ export function AnchorNowButton({ onAnchored }: { onAnchored?: (anchor: AnchorRe
           </p>
         )}
         {outcome?.kind === "error" && (
-          <p role="alert" className="text-destructive">
+          <p role="alert" className="text-stop">
             {outcome.message} {outcome.explorerUrl && <ExplorerLink href={outcome.explorerUrl} />}
           </p>
         )}
@@ -62,7 +62,7 @@ export function AnchorNowButton({ onAnchored }: { onAnchored?: (anchor: AnchorRe
 
 function ExplorerLink({ href }: { href: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-orchid-text underline">
       View on Solana Explorer
       <ExternalLink aria-hidden className="size-3.5" />
       <span className="sr-only">(opens in a new tab)</span>
