@@ -41,6 +41,7 @@ import type {
   ReviewResponse,
   SignInError,
   PasswordResetError,
+  PasswordUpdateError,
   SignUpError,
   SignUpResponse,
   StartError,
@@ -193,8 +194,51 @@ export async function requestPasswordReset(email: string): Promise<ApiResult<nul
   const mocked = await viaMock("auth", (m) => m.requestPasswordReset(email));
   if (mocked) return mocked;
   try {
-    const { error } = await createSupabaseClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/portal` });
+    // /portal/reset, not /portal: the recovery link only signs the patient in, and the new
+    // password still has to be set. /portal has no form for that, so the link used to land
+    // somewhere that looked fine and changed nothing. The origin is the current one so the
+    // token is never dropped by a redirect (pledgecheck.tech 302s to vercel.app, and a URL
+    // fragment does not survive that hop).
+    const { error } = await createSupabaseClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}${PASSWORD_RESET_PATH}`,
+    });
     if (unreachable(error)) return { ok: false, error: { code: "network_error", status: 0 } };
+    return success(null);
+  } catch {
+    return { ok: false, error: { code: "network_error", status: 0 } };
+  }
+}
+
+/** Where a recovery email lands. Must be in Supabase's redirect allow-list for every origin. */
+export const PASSWORD_RESET_PATH = "/portal/reset";
+
+/**
+ * Sets a new password for the patient the recovery link signed in.
+ *
+ * Needs the recovery session in place, which is why the reset screen waits for it before
+ * showing the form: without one Supabase has no user to update and the call is refused.
+ */
+export async function setNewPassword(password: string): Promise<ApiResult<null, PasswordUpdateError>> {
+  const mocked = await viaMock("auth", (m) => m.setNewPassword(password));
+  if (mocked) return mocked;
+  try {
+    const supabase = createSupabaseClient();
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) return { ok: false, error: { code: "no_session", status: 401 } };
+
+    const { error } = await supabase.auth.updateUser({ password });
+    if (unreachable(error)) return { ok: false, error: { code: "network_error", status: 0 } };
+    if (error) {
+      const message = error.message.toLowerCase();
+      // Supabase has no stable code for either, so the message is all there is to go on.
+      if (message.includes("should be different")) {
+        return { ok: false, error: { code: "same_password", status: error.status ?? 422 } };
+      }
+      if (message.includes("password")) {
+        return { ok: false, error: { code: "weak_password", status: error.status ?? 422 } };
+      }
+      return { ok: false, error: { code: "no_session", status: error.status ?? 401 } };
+    }
     return success(null);
   } catch {
     return { ok: false, error: { code: "network_error", status: 0 } };

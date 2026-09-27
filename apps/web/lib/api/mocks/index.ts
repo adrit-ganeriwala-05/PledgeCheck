@@ -48,6 +48,7 @@ import type {
   ReviewResponse,
   SignInError,
   PasswordResetError,
+  PasswordUpdateError,
   SignUpError,
   SignUpResponse,
   StartError,
@@ -152,6 +153,13 @@ export async function requestPasswordReset(email: string): Promise<ApiResult<nul
   await delay();
   if (email.trim().toLowerCase().endsWith("@offline.test")) return err("network_error", 0);
   // Same answer for every other address: the screen never learns whether an account exists.
+  return ok(null);
+}
+
+/** The offline demo has no Supabase, so any password of a sane length is accepted. */
+export async function setNewPassword(password: string): Promise<ApiResult<null, PasswordUpdateError>> {
+  await delay();
+  if (password.length < 8) return err("weak_password", 422);
   return ok(null);
 }
 

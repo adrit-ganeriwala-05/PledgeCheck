@@ -107,6 +107,12 @@ export type SignUpError = "email_taken" | "weak_password" | "invalid_email" | "t
 export type SignInError = "bad_credentials";
 /** The reset email is requested the same way whether or not the address has an account. */
 export type PasswordResetError = never;
+/**
+ * Setting a new password from a recovery link. `no_session` means the link was never
+ * exchanged for a session — expired, already used, or opened through a redirect that dropped
+ * the token — and `same_password` is Supabase refusing a password the account already has.
+ */
+export type PasswordUpdateError = "no_session" | "weak_password" | "same_password";
 
 // ---------------------------------------------------------------------------
 // Clinic: refill requests (needed from backend)
