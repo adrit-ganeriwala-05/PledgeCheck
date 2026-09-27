@@ -15,3 +15,15 @@ describe("sortByUrgency", () => {
     expect(sortByUrgency([a, b, c, d]).map((x) => x.submissionId)).toEqual(["d", "c", "a", "b"]);
   });
 });
+
+describe("countdownTone", () => {
+  it("is amber inside 72 hours and red inside 24", async () => {
+    const { countdownTone } = await import("./window-countdown");
+    const now = Date.parse("2026-09-27T00:00:00Z");
+    const at = (h: number) => new Date(now + h * 3600e3).toISOString();
+    expect(countdownTone(at(100), now)).toBe("calm");
+    expect(countdownTone(at(48), now)).toBe("soon");
+    expect(countdownTone(at(10), now)).toBe("urgent");
+    expect(countdownTone(at(-1), now)).toBe("urgent");
+  });
+});

@@ -46,6 +46,10 @@ export function WindowCountdown({ window, capturedAt, className }: Props) {
         <ClockIcon className="size-3.5" aria-hidden />
         <span className="tabular font-semibold">{describeWindowCountdown(window.closesAt, now)}</span>
         {window.isFirstRx ? <span className="text-haze"> · first prescription</span> : null}
+        {/* Changes only when the tone does, so it is announced at each threshold, not every tick. */}
+        <span className="sr-only" aria-live="polite">
+          {tone === "urgent" ? "Fill window closes within 24 hours" : tone === "soon" ? "Fill window closes within 3 days" : ""}
+        </span>
       </p>
     );
   }
