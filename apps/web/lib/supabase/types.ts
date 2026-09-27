@@ -2,6 +2,10 @@
 //   npx supabase@2.118.0 gen types typescript --local --schema public > apps/web/lib/supabase/types.ts
 //   npx prettier@3.6.2 --write apps/web/lib/supabase/types.ts
 // Do not edit by hand; regenerate after changing db/*.sql.
+//
+// EXCEPTION, to be removed: patients.contact_email, patients.auth_user_id and the whole
+// refill_requests table were added by hand, because the portal schema is not applied to a
+// database yet. Regenerate from local Supabase at the next opportunity and delete this note.
 
 export type Json =
   | string
@@ -113,7 +117,9 @@ export type Database = {
       };
       patients: {
         Row: {
+          auth_user_id: string | null;
           can_get_pregnant: boolean;
+          contact_email: string | null;
           home_testing_allowed: boolean;
           id: string;
           language: string;
@@ -123,7 +129,9 @@ export type Database = {
           treatment_start: string | null;
         };
         Insert: {
+          auth_user_id?: string | null;
           can_get_pregnant: boolean;
+          contact_email?: string | null;
           home_testing_allowed?: boolean;
           id?: string;
           language?: string;
@@ -133,7 +141,9 @@ export type Database = {
           treatment_start?: string | null;
         };
         Update: {
+          auth_user_id?: string | null;
           can_get_pregnant?: boolean;
+          contact_email?: string | null;
           home_testing_allowed?: boolean;
           id?: string;
           language?: string;
@@ -169,6 +179,61 @@ export type Database = {
           name?: string;
         };
         Relationships: [];
+      };
+      refill_requests: {
+        Row: {
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          decline_reason: string | null;
+          id: string;
+          patient_id: string;
+          status: string;
+          test_request_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decline_reason?: string | null;
+          id?: string;
+          patient_id: string;
+          status?: string;
+          test_request_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decline_reason?: string | null;
+          id?: string;
+          patient_id?: string;
+          status?: string;
+          test_request_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "refill_requests_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "refill_requests_test_request_id_fkey";
+            columns: ["test_request_id"];
+            isOneToOne: false;
+            referencedRelation: "test_requests";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "refill_requests_decided_by_fkey";
+            columns: ["decided_by"];
+            isOneToOne: false;
+            referencedRelation: "clinicians";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       reviews: {
         Row: {
