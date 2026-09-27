@@ -33,20 +33,44 @@ export const FLAG_LABELS: Record<string, string> = Object.fromEntries(
   Object.entries(FLAGS).map(([flag, info]) => [flag, info.label]),
 );
 
+// The submissions pipeline stores the rules engine's reasons (lib/rules/engine.ts) in the same
+// flags array. They are sentences, not codes: the passing ones repeat what the readers panel shows,
+// the rest become labeled flags.
+const ENGINE_PASSED = [/^readers agree\b/, /^both readers above the confidence threshold$/, /^code matches$/];
+const ENGINE_FRAUD = [/^code missing or wrong\b/, /^home testing not permitted\b/];
+
+function isEngineReason(flag: string): boolean {
+  return /\s/.test(flag);
+}
+
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A rules-engine reason that only confirms a check passed; not a flag. */
+export function isPassedCheck(flag: string): boolean {
+  return isEngineReason(flag) && ENGINE_PASSED.some((re) => re.test(flag));
+}
+
 export function flagLabel(flag: string): { label: string; known: boolean } {
   const label = FLAG_LABELS[flag];
-  return label ? { label, known: true } : { label: flag, known: false };
+  if (label) return { label, known: true };
+  if (isEngineReason(flag)) return { label: sentence(flag), known: true };
+  return { label: flag, known: false };
 }
 
 export function flagSeverity(flag: string): FlagSeverity | "unknown" {
-  return FLAGS[flag]?.severity ?? "unknown";
+  const known = FLAGS[flag]?.severity;
+  if (known) return known;
+  if (isEngineReason(flag)) return ENGINE_FRAUD.some((re) => re.test(flag)) ? "fraud" : "review";
+  return "unknown";
 }
 
 const SEVERITY_ORDER: Record<FlagSeverity | "unknown", number> = { fraud: 0, degraded: 1, review: 2, unknown: 3 };
 
-/** Most serious first; stable within a severity. */
+/** The flags worth showing, most serious first; stable within a severity. Passed checks are left out. */
 export function sortFlags(flags: string[]): string[] {
-  return [...flags].sort((a, b) => SEVERITY_ORDER[flagSeverity(a)] - SEVERITY_ORDER[flagSeverity(b)]);
+  return flags.filter((f) => !isPassedCheck(f)).sort((a, b) => SEVERITY_ORDER[flagSeverity(a)] - SEVERITY_ORDER[flagSeverity(b)]);
 }
 
 /**

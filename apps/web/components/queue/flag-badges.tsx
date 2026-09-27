@@ -13,10 +13,11 @@ const SEVERITY_STYLE = {
 
 // Flags as labeled chips: color, icon and text together, so meaning never rests on color alone.
 export function FlagBadges({ flags }: { flags: string[] }) {
-  if (flags.length === 0) return null;
+  const shown = sortFlags(flags);
+  if (shown.length === 0) return null;
   return (
     <ul aria-label="Flags" className="flex flex-wrap gap-1.5">
-      {sortFlags(flags).map((flag) => {
+      {shown.map((flag) => {
         const { label, known } = flagLabel(flag);
         const severity = flagSeverity(flag);
         const style = SEVERITY_STYLE[severity];
@@ -26,7 +27,7 @@ export function FlagBadges({ flags }: { flags: string[] }) {
             <span
               data-severity={severity}
               className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium",
+                "inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-xs font-medium",
                 style.className,
               )}
             >

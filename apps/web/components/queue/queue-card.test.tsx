@@ -80,6 +80,36 @@ describe("QueueCard: flag labels and severity", () => {
   });
 });
 
+describe("QueueCard: rules-engine reasons stored with the flags", () => {
+  it("hides the passing checks on a clean card instead of showing them as unknown flags", () => {
+    render(
+      <QueueCard
+        card={makeCard({ flags: ["readers agree: negative", "both readers above the confidence threshold", "code matches"] })}
+        onResolved={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("list", { name: "Flags" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unrecognized/)).not.toBeInTheDocument();
+  });
+
+  it("labels review reasons and lists new ones without repeating the reads", () => {
+    const card = makeCard({
+      status: "needs_review",
+      grok: { result: "positive", code: "K7Q2", confidence: 0.62, codeMatches: true },
+      opencv: { result: "positive", confidence: 0.9 },
+      flags: ["grok confidence 0.62 is below 0.85", "positive result; prescriber must contact the patient before any fill"],
+    });
+    render(<QueueCard card={card} onResolved={vi.fn()} />);
+    const list = screen.getByRole("list", { name: "Flags" });
+    expect(within(list).getByText("Positive result; prescriber must contact the patient before any fill")).toBeInTheDocument();
+    expect(within(list).getByText("Grok confidence 0.62 is below 0.85")).toBeInTheDocument();
+    expect(closerReviewReasons(card)).toEqual([
+      "Low Grok confidence (62%)",
+      "Positive result; prescriber must contact the patient before any fill",
+    ]);
+  });
+});
+
 describe("QueueCard: degraded checks never look like a clean pass", () => {
   it("says only one reader ran when OpenCV is unavailable", () => {
     render(
