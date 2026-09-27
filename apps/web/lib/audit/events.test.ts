@@ -6,6 +6,7 @@ describe("audit event catalog", () => {
   it("contains every action the app writes", () => {
     for (const action of [
       "request.issued",
+      "request.emailed",
       "session.started",
       "submission.received",
       "submission.rejected_link",

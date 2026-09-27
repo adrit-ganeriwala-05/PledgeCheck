@@ -1,27 +1,19 @@
 // POST /api/requests — a clinician issues a one-time test link. Owner: Nihalika (N1).
 // Body: { patientId, setting: "home" | "clinic" } → 200 { requestId, link, expiresAt }
 //
-// The challenge code is generated and stored here but NOT returned: it stays secret until
-// the patient taps Start (POST /api/t/:token/start). The plain token appears only in the
-// returned link; the database keeps its hash.
+// The issuing itself lives in lib/requests/issue.ts, shared with the refill approval that
+// emails the link. The challenge code is never returned; see that module.
 //
 // 400 invalid body · 401 no session · 403 not a clinician · 404 patient not visible
 // (other practice) · 409 home_testing_not_allowed · 500 issue_failed / audit_failed
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { appendAuditEvent } from "@/lib/audit/append";
 import { getClinician } from "@/lib/clinic/auth";
-import { generateChallengeCode } from "@/lib/fraud/code";
-import { homeRefusal } from "@/lib/fraud/home-guards";
-import { linkExpiresAt } from "@/lib/fraud/session";
-import { generateToken, hashToken } from "@/lib/fraud/token";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { issueTestLink, linkOrigin } from "@/lib/requests/issue";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-const PRODUCTION_ORIGIN = "https://pledgecheck.tech";
 
 const bodySchema = z.object({
   // z.guid(): any 8-4-4-4-12 hex id (seeded ids are not RFC-4122 versioned).
@@ -31,10 +23,6 @@ const bodySchema = z.object({
 
 function fail(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ error, ...extra }, { status });
-}
-
-function linkOrigin(request: Request): string {
-  return process.env.NODE_ENV === "production" ? PRODUCTION_ORIGIN : new URL(request.url).origin;
 }
 
 export async function POST(request: Request) {
@@ -51,62 +39,18 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const auth = await getClinician(supabase);
   if (!auth.ok) return fail(auth.status, auth.error);
-  const clinician = auth.clinician;
 
-  // RLS hides other practices' patients, so they read as not found.
-  const { data: patient, error: patientError } = await supabase
-    .from("patients")
-    .select("id, practice_id, can_get_pregnant, home_testing_allowed, phase")
-    .eq("id", patientId)
-    .maybeSingle();
-  if (patientError) return fail(500, "issue_failed");
-  if (!patient || patient.practice_id !== clinician.practiceId) return fail(404, "not_found");
-
-  if (setting === "home") {
-    const refusal = homeRefusal(patient);
-    if (refusal) return fail(409, "home_testing_not_allowed", { reason: refusal });
-  }
-
-  const token = generateToken();
-  const expiresAt = linkExpiresAt(new Date()).toISOString();
-
-  const admin = createAdminClient();
-  const { data: created, error: insertError } = await admin
-    .from("test_requests")
-    .insert({
-      patient_id: patient.id,
-      token_hash: hashToken(token),
-      challenge_code: generateChallengeCode(),
-      setting,
-      expires_at: expiresAt,
-      created_by: clinician.id,
-    })
-    .select("id")
-    .single();
-  if (insertError || !created) {
-    console.error("[requests] insert failed", insertError?.message ?? "no row");
-    return fail(500, "issue_failed");
-  }
-
-  // No link leaves the server without its audit event. On failure the row is orphaned
-  // but unusable: nobody ever sees its token.
-  try {
-    await appendAuditEvent({
-      actor: `clinician:${clinician.id}`,
-      action: "request.issued",
-      refId: created.id,
-      payload: { setting },
-    });
-  } catch (err) {
-    console.error("[requests] AUDIT EVENT NOT WRITTEN — link withheld", {
-      requestId: created.id,
-      cause: err instanceof Error ? err.message : "unknown",
-    });
-    return fail(500, "audit_failed");
-  }
+  const issued = await issueTestLink({
+    supabase,
+    clinician: auth.clinician,
+    patientId,
+    setting,
+    origin: linkOrigin(request),
+  });
+  if (!issued.ok) return fail(issued.status, issued.error, issued.extra);
 
   return NextResponse.json(
-    { requestId: created.id, link: `${linkOrigin(request)}/t/${token}`, expiresAt },
+    { requestId: issued.requestId, link: issued.link, expiresAt: issued.expiresAt },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

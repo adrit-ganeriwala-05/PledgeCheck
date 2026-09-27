@@ -35,6 +35,8 @@ Replace every `<PLACEHOLDER>` with the real value. Never commit a real key or `.
    | `TIGER_DATABASE_URL` | Labib | Tiger Data service connection string |
    | `SOLANA_RPC_URL` | Nihalika | Devnet RPC URL |
    | `SOLANA_SECRET_KEY` | Nihalika | Devnet keypair (test SOL only) |
+   | `RESEND_API_KEY` | Nihalika | Sends the test link email on refill approval |
+   | `EMAIL_FROM` | Nihalika | e.g. `PledgeCheck <links@pledgecheck.tech>`; domain verified in Resend |
 
    Only the two `NEXT_PUBLIC_*` values are allowed in browser code.
 3. Project → Settings → Domains: add `pledgecheck.tech` (and `www.pledgecheck.tech` if offered).
