@@ -15,6 +15,12 @@ export const AUDIT_ACTIONS = [
   "window.filled",
   "window.missed",
   "patient.home_testing_changed",
+  // Patient portal. The patient is the actor only for the request itself; every decision
+  // on it is a clinician's and is logged under their id.
+  "refill.requested",
+  "refill.declined",
+  "refill.linked",
+  "patient.portal_linked",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
