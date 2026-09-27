@@ -118,27 +118,61 @@ export function paperRoughness(): THREE.CanvasTexture {
   });
 }
 
+/** The absorbent tip: a dense felt of fibers, as a normal map so it reads as a soft pad. */
+export function fiberNormal(): THREE.CanvasTexture {
+  return cached("fiberNormal", () => {
+    const size = 256;
+    const { ctx } = canvas(size, size);
+    const rand = rng(61);
+    ctx.fillStyle = "rgb(128,128,128)";
+    ctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 2600; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const a = rand() * Math.PI;
+      const len = 4 + rand() * 14;
+      const v = rand() < 0.5 ? 70 + rand() * 40 : 170 + rand() * 60;
+      ctx.strokeStyle = `rgba(${v},${v},${v},0.6)`;
+      ctx.lineWidth = 0.8 + rand() * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+      ctx.stroke();
+    }
+    const data = ctx.getImageData(0, 0, size, size).data;
+    const height = new Float32Array(size * size);
+    for (let i = 0; i < height.length; i++) height[i] = data[i * 4] / 255;
+    const texture = heightToNormal(height, size, 5);
+    // About 1.4 cm per tile, so single fibers are visible up close.
+    texture.repeat.set(0.7, 0.7);
+    return texture;
+  });
+}
+
 /**
- * Absorbed dye: a soft band across the strip whose density varies along its length and whose
- * edges bleed. Used as an alpha map (green channel), so the color stays in the material.
+ * Where the control line's dye sits on the strip, as a mask the size of the whole strip: a soft
+ * band whose density varies along its length and whose edges bleed. The strip material mixes dye
+ * into the paper by this mask, so the line is opaque (no transparency, no alpha-hash grain) and
+ * shows through the transmissive window like the paper around it.
+ * @param center where the line sits along the strip, 0-1
+ * @param width  the line's width as a fraction of the strip's length
  */
-export function dyeLine(): THREE.CanvasTexture {
-  return cached("dyeLine", () => {
-    const w = 64;
-    const h = 256;
+export function stripDyeMask(center: number, width: number): THREE.CanvasTexture {
+  return cached(`stripDyeMask:${center}:${width}`, () => {
+    const w = 1024;
+    const h = 128;
     const { el, ctx } = canvas(w, h);
     const img = ctx.createImageData(w, h);
     const density = valueNoise(h, 16, 41);
-    const edge = valueNoise(h, 40, 43);
+    const edge = valueNoise(h, 8, 43);
+    const lineW = width * w;
     for (let y = 0; y < h; y++) {
-      // Density along the line, and a slightly wandering center.
       const d = 0.85 + density[y] * 0.15;
-      const center = w / 2 + (edge[y] - 0.5) * 3;
-      const endFade = Math.min(1, y / 8, (h - 1 - y) / 8);
+      const cx = center * w + (edge[y] - 0.5) * lineW * 0.05;
+      const endFade = Math.min(1, y / 6, (h - 1 - y) / 6);
       for (let x = 0; x < w; x++) {
-        const dist = Math.abs(x - center) / (w * 0.2);
-        const profile = Math.exp(-Math.pow(dist, 2.6));
-        // Dense core, soft bleeding edges.
+        const dist = Math.abs(x - cx) / (lineW * 0.2);
+        const profile = Math.exp(-Math.pow(dist, 2.1));
         const v = Math.max(0, Math.min(1, Math.pow(profile, 0.6) * d * endFade * 1.25));
         const i = (y * w + x) * 4;
         img.data[i] = img.data[i + 1] = img.data[i + 2] = v * 255;
@@ -148,25 +182,7 @@ export function dyeLine(): THREE.CanvasTexture {
     ctx.putImageData(img, 0, 0);
     const texture = new THREE.CanvasTexture(el);
     texture.colorSpace = THREE.NoColorSpace;
-    return texture;
-  });
-}
-
-/** The moving front of liquid wicking along the strip: a soft falloff behind a sharper edge. */
-export function wickFront(): THREE.CanvasTexture {
-  return cached("wickFront", () => {
-    const w = 256;
-    const h = 32;
-    const { el, ctx } = canvas(w, h);
-    const g = ctx.createLinearGradient(0, 0, w, 0);
-    g.addColorStop(0, "rgba(255,255,255,0)");
-    g.addColorStop(0.75, "rgba(255,255,255,0.55)");
-    g.addColorStop(0.93, "rgba(255,255,255,1)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-    const texture = new THREE.CanvasTexture(el);
-    texture.colorSpace = THREE.NoColorSpace;
+    texture.anisotropy = 8;
     return texture;
   });
 }

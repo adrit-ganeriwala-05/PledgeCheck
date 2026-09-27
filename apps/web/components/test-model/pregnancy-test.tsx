@@ -14,7 +14,7 @@ import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { codeInk, dyeLine, markings, paperRoughness, plasticNormal, wickFront, windowSmudge } from "./textures";
+import { codeInk, fiberNormal, markings, paperRoughness, plasticNormal, stripDyeMask, windowSmudge } from "./textures";
 
 export type Quality = "high" | "medium" | "low";
 
@@ -65,12 +65,13 @@ function slab(shape: THREE.Shape, thickness: number, bevel: number, bevelSize = 
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize,
-    bevelSegments: 10,
+    bevelSegments: 28,
     curveSegments: 48,
   });
+  // ExtrudeGeometry is non-indexed and ships smooth normals; recomputing them here would give
+  // flat per-face shading (visible as stair-steps on every rounded edge).
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(0, bevel, 0);
-  geometry.computeVertexNormals();
   return geometry;
 }
 
@@ -102,6 +103,53 @@ function useGeometry() {
   }, []);
 }
 
+// The strip, in strip-length units: where it starts and how long it is (see the Strip mesh).
+const STRIP_X0 = WIN.x0 - 0.2;
+const STRIP_LEN = WIN.x1 - WIN.x0 + 0.4;
+const LINE_WIDTH = 0.3;
+
+type StripUniforms = { uLine: { value: number }; uFront: { value: number }; uFrontAmount: { value: number } };
+
+/**
+ * Nitrocellulose strip with its liquid front and control line drawn into the material itself:
+ * paper, then a pink wash as the sample wicks along, then dye mixed in by a soft, uneven mask.
+ * Everything is opaque, so there is no alpha-hash grain and the window's transmission sees it all.
+ */
+function stripMaterial(roughness: THREE.Texture) {
+  const material = new THREE.MeshStandardMaterial({
+    color: "#f6f4ef",
+    roughness: 0.95,
+    roughnessMap: roughness,
+    // The map slot carries the dye mask; the shader below reads it as a mask, not a color.
+    map: stripDyeMask((LINE_X.C - STRIP_X0) / STRIP_LEN, LINE_WIDTH / STRIP_LEN),
+  });
+  const uniforms: StripUniforms = { uLine: { value: 0 }, uFront: { value: -1 }, uFrontAmount: { value: 0 } };
+  material.userData.uniforms = uniforms;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms, {
+      uInk: { value: new THREE.Color("#b0104f") },
+      uWash: { value: new THREE.Color("#f0c4d8") },
+    });
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform float uLine;\nuniform float uFront;\nuniform float uFrontAmount;\nuniform vec3 uInk;\nuniform vec3 uWash;",
+      )
+      .replace(
+        "#include <map_fragment>",
+        `#ifdef USE_MAP
+          float u = vMapUv.x;
+          // Wet band just behind the liquid front, fading back toward the tip.
+          float wash = smoothstep(uFront - 0.3, uFront, u) * (1.0 - smoothstep(uFront, uFront + 0.015, u));
+          diffuseColor.rgb = mix(diffuseColor.rgb, uWash, wash * uFrontAmount);
+          float dye = texture2D(map, vMapUv).g * uLine;
+          diffuseColor.rgb = mix(diffuseColor.rgb, uInk, dye);
+        #endif`,
+      );
+  };
+  return material;
+}
+
 function useMaterials(quality: Quality) {
   return useMemo(() => {
     const normal = plasticNormal();
@@ -117,13 +165,13 @@ function useMaterials(quality: Quality) {
           sheenRoughness: 0.8,
           sheenColor: new THREE.Color("#ffffff"),
           normalMap: normal,
-          normalScale: new THREE.Vector2(0.12, 0.12),
+          normalScale: new THREE.Vector2(0.06, 0.06),
         })
       : new THREE.MeshStandardMaterial({
           color: "#f1eee8",
           roughness: 0.45,
           normalMap: normal,
-          normalScale: new THREE.Vector2(0.12, 0.12),
+          normalScale: new THREE.Vector2(0.06, 0.06),
         });
 
     const cap = physical
@@ -162,33 +210,15 @@ function useMaterials(quality: Quality) {
         });
 
     const paperRough = paperRoughness();
-    const strip = new THREE.MeshStandardMaterial({ color: "#f6f4ef", roughness: 0.95, roughnessMap: paperRough });
-    const wick = new THREE.MeshStandardMaterial({ color: "#f3f1ea", roughness: 1, roughnessMap: paperRough });
+    const strip = stripMaterial(paperRough);
+    // The absorbent tip: fibrous, faintly warm and fully matte, not molded plastic.
+    const wick = new THREE.MeshStandardMaterial({
+      color: "#ece6d8",
+      roughness: 1,
+      normalMap: fiberNormal(),
+      normalScale: new THREE.Vector2(1.0, 1.0),
+    });
 
-    // With a transmissive window the dye must be alpha-hashed, because the transmission pass only
-    // sees opaque meshes (at high DPR the hash reads as dye grain). The low tier's plain pane
-    // allows ordinary blending.
-    const dye = new THREE.MeshStandardMaterial({
-      color: "#b0104f",
-      roughness: 0.95,
-      alphaHash: physical,
-      transparent: !physical,
-      depthWrite: physical,
-      alphaMap: dyeLine(),
-      opacity: 0,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-    });
-    const front = new THREE.MeshBasicMaterial({
-      color: "#f0c4d8",
-      alphaHash: physical,
-      transparent: !physical,
-      depthWrite: physical,
-      alphaMap: wickFront(),
-      opacity: 0,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-    });
     const print = new THREE.MeshStandardMaterial({
       map: markings(),
       transparent: true,
@@ -198,7 +228,7 @@ function useMaterials(quality: Quality) {
       polygonOffsetFactor: -2,
     });
 
-    return { body, cap, pane, strip, wick, dye, front, print };
+    return { body, cap, pane, strip, wick, print };
   }, [quality]);
 }
 
@@ -226,8 +256,7 @@ export function PregnancyTest({
   }, [showCode, code]);
 
   const capRef = useRef<THREE.Mesh>(null);
-  const frontRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
-  const lineRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
+  const stripRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
   const inkRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.Material>>(null);
   const progress = useRef<number | null>(null);
   const lift = useRef<number | null>(null);
@@ -241,16 +270,15 @@ export function PregnancyTest({
     lift.current = THREE.MathUtils.damp(lift.current ?? targetLift, targetLift, 3, dt);
     const p = progress.current;
 
-    // Liquid front runs along the strip in the first half, then fades as it passes.
-    const run = THREE.MathUtils.clamp(p / 0.55, 0, 1);
-    const frontX = THREE.MathUtils.lerp(WIN.x0 - 0.5, WIN.x1 + 0.6, run);
-    if (frontRef.current) {
-      frontRef.current.position.x = frontX - 0.6;
-      frontRef.current.material.opacity = run > 0 && run < 1 ? 0.55 * Math.sin(run * Math.PI) : 0;
+    // Liquid front runs along the strip in the first half, then fades as it passes; the control
+    // line develops once the liquid has passed it.
+    const strip = stripRef.current?.material.userData.uniforms as StripUniforms | undefined;
+    if (strip) {
+      const run = THREE.MathUtils.clamp(p / 0.55, 0, 1);
+      strip.uFront.value = THREE.MathUtils.lerp(-0.1, 1.15, run);
+      strip.uFrontAmount.value = run > 0 && run < 1 ? 0.55 * Math.sin(run * Math.PI) : 0;
+      strip.uLine.value = THREE.MathUtils.smoothstep(p, 0.38, 1);
     }
-    // Control line develops once the liquid has passed it.
-    if (lineRef.current) lineRef.current.material.opacity = THREE.MathUtils.smoothstep(p, 0.38, 1);
-
     if (inkRef.current) inkRef.current.material.opacity = THREE.MathUtils.clamp(read(codeReveal), 0, 1);
 
     const l = lift.current;
@@ -282,7 +310,7 @@ export function PregnancyTest({
           <planeGeometry args={[MARK.width, MARK.width / 4]} />
         </mesh>
         {/* Absorbent tip, hidden under the cap until it lifts. */}
-        <RoundedBox name="Wick" args={[2.7, 0.42, 1.5]} radius={0.14} smoothness={4} position={[-4.75, THICK / 2, 0]} material={materials.wick} />
+        <RoundedBox name="Wick" args={[2.7, 0.5, 1.56]} radius={0.22} smoothness={6} position={[-4.75, THICK / 2, 0]} material={materials.wick} />
         {ink ? (
           <mesh ref={inkRef} position={[2.3, THICK + 0.003, 0]} rotation-x={-Math.PI / 2} material={ink}>
             <planeGeometry args={[2.1, 1.05]} />
@@ -291,19 +319,13 @@ export function PregnancyTest({
       </group>
 
       <group name="Strip">
-        <mesh position={[(WIN.x0 + WIN.x1) / 2, STRIP_Y, 0]} rotation-x={-Math.PI / 2} material={materials.strip} receiveShadow>
-          <planeGeometry args={[WIN.x1 - WIN.x0 + 0.4, WIN.halfW * 2 + 0.2]} />
+        <mesh ref={stripRef} position={[STRIP_X0 + STRIP_LEN / 2, STRIP_Y, 0]} rotation-x={-Math.PI / 2} material={materials.strip} receiveShadow>
+          <planeGeometry args={[STRIP_LEN, WIN.halfW * 2 + 0.2]} />
         </mesh>
-        <mesh ref={frontRef} position={[WIN.x0, STRIP_Y + 0.001, 0]} rotation-x={-Math.PI / 2} material={materials.front}>
-          <planeGeometry args={[1.2, WIN.halfW * 2 + 0.1]} />
-        </mesh>
-        <mesh name="LineC" ref={lineRef} position={[LINE_X.C, STRIP_Y + 0.002, 0]} rotation-x={-Math.PI / 2} material={materials.dye}>
-          <planeGeometry args={[0.3, WIN.halfW * 2 - 0.04]} />
-        </mesh>
-        {/* Never shown (see the content rule above). */}
-        <mesh name="LineT" visible={false} position={[LINE_X.T, STRIP_Y + 0.002, 0]} rotation-x={-Math.PI / 2}>
-          <planeGeometry args={[0.22, WIN.halfW * 2 - 0.04]} />
-        </mesh>
+        {/* Locators for GLB parity. The control line is drawn into the strip's material at LineC;
+            LineT is never shown (see the content rule above). */}
+        <group name="LineC" position={[LINE_X.C, STRIP_Y, 0]} />
+        <group name="LineT" position={[LINE_X.T, STRIP_Y, 0]} visible={false} />
       </group>
 
       <mesh name="Window" geometry={geometry.windowPane} material={materials.pane} />
