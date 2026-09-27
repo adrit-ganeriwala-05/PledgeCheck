@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { useDeferredMount } from "./defer";
 import type { Quality } from "./pregnancy-test";
 import type { View } from "./scene";
 
@@ -88,6 +89,7 @@ export function TestModel({
   const [live, setLive] = useState<Quality | null>(null);
   const [ready, setReady] = useState(false);
   const [inView, setInView] = useState(true);
+  const mount = useDeferredMount(live !== null);
 
   useEffect(() => {
     // No matchMedia (very old browsers, test environments): stay on the poster.
@@ -124,7 +126,7 @@ export function TestModel({
         sizes={sizes}
         className={cn("object-contain transition-opacity duration-700", ready && "opacity-0")}
       />
-      {live ? (
+      {live && mount ? (
         <div className={cn("absolute inset-0 transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")}>
           <Scene
             tier={live}

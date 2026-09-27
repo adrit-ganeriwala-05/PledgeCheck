@@ -8,7 +8,7 @@
 // Scroll progress arrives as a Motion value and is read (and damped) inside useFrame, so
 // scrolling never re-renders React.
 import { AdaptiveDpr, PerformanceMonitor, RoundedBox } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { MotionValue } from "motion/react";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -112,10 +112,13 @@ export type StoryCanvasProps = {
 
 export function StoryCanvas({ progress, layout, tier, active, onReady, onDecline, develop = true }: StoryCanvasProps) {
   const L = LAYOUTS[layout];
+  // Desktop keeps a continuous loop for the idle sway and pointer tilt. Phones render on demand:
+  // only while the scroll position or an animation is still settling.
+  const continuous = layout === "wide";
   return (
     <Canvas
       dpr={tier === "high" ? [1, 2] : [1, 1.5]}
-      frameloop={active ? "always" : "never"}
+      frameloop={active ? (continuous ? "always" : "demand") : "never"}
       camera={{ position: L.keys[0].cam, fov: L.fov, near: 1, far: 300 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl }) => trackCanvas(gl.domElement)}
@@ -126,7 +129,7 @@ export function StoryCanvas({ progress, layout, tier, active, onReady, onDecline
       <AdaptiveDpr pixelated={false} />
       <Studio quality={tier} />
       <Lens layout={layout} />
-      <Story progress={progress} layout={layout} tier={tier} develop={develop} />
+      <Story progress={progress} layout={layout} tier={tier} develop={develop} idle={continuous} />
       {tier === "high" ? <Effects focusDistance={L.focus} focusRange={18} /> : null}
       <ReadySignal onReady={onReady} />
     </Canvas>
@@ -152,7 +155,20 @@ function Lens({ layout }: { layout: Layout }) {
   return null;
 }
 
-function Story({ progress, layout, tier, develop }: { progress: MotionValue<number>; layout: Layout; tier: Quality; develop: boolean }) {
+function Story({
+  progress,
+  layout,
+  tier,
+  develop,
+  idle,
+}: {
+  progress: MotionValue<number>;
+  layout: Layout;
+  tier: Quality;
+  develop: boolean;
+  /** Idle sway and pointer tilt (desktop only). */
+  idle: boolean;
+}) {
   const L = LAYOUTS[layout];
   const t = useRef(progress.get());
   const developed = useRef(0);
@@ -166,11 +182,18 @@ function Story({ progress, layout, tier, develop }: { progress: MotionValue<numb
   const tmp = useMemo(() => new THREE.Vector3(), []);
 
   // The one orchestrated moment on load: after a beat, the control line develops.
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     if (!develop) return;
-    const id = setTimeout(() => (developed.current = 1), 900);
+    const id = setTimeout(() => {
+      developed.current = 1;
+      invalidate();
+    }, 900);
     return () => clearTimeout(id);
-  }, [develop]);
+  }, [develop, invalidate]);
+
+  // On-demand rendering: every scroll change asks for a frame; useFrame keeps asking until settled.
+  useEffect(() => progress.on("change", () => invalidate()), [progress, invalidate]);
 
   const driven = useMemo(
     () => ({
@@ -185,7 +208,9 @@ function Story({ progress, layout, tier, develop }: { progress: MotionValue<numb
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
-    t.current = THREE.MathUtils.damp(t.current, progress.get(), 5, dt);
+    const target = progress.get();
+    t.current = THREE.MathUtils.damp(t.current, target, 5, dt);
+    if (Math.abs(t.current - target) > 0.0005) state.invalidate();
     const p = t.current;
     const face = ease(seg(p, 0.04, 0.25));
     const close = ease(seg(p, 0.3, 0.47));
@@ -195,8 +220,8 @@ function Story({ progress, layout, tier, develop }: { progress: MotionValue<numb
     // The test: rests, then rises and turns to face the viewer, then shrinks into its block.
     const r = rig.current;
     if (r) {
-      const sway = Math.sin(state.clock.elapsedTime * 0.22) * 0.18 * (1 - face);
-      const tilt = state.pointer.x * 0.12 * (1 - face);
+      const sway = idle ? Math.sin(state.clock.elapsedTime * 0.22) * 0.18 * (1 - face) : 0;
+      const tilt = idle ? state.pointer.x * 0.12 * (1 - face) : 0;
       lerp3(r.position, L.heroPos, L.facePos, face);
       r.rotation.set(L.faceTilt * face, L.heroYaw + (L.faceYaw - L.heroYaw) * face + sway + tilt, 0);
       r.scale.setScalar(1 - 0.7 * glass);

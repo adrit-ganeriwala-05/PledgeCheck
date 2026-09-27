@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { Quality } from "@/components/test-model/pregnancy-test";
+import { useDeferredMount } from "@/components/test-model/defer";
 import { hasWebGL } from "@/components/test-model/test-model";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +51,7 @@ export function Story() {
   const [tier, setTier] = useState<Quality>("high");
   const [ready, setReady] = useState(false);
   const [inView, setInView] = useState(true);
+  const mount = useDeferredMount(mode === "live");
 
   useEffect(() => {
     const decideLayout = () =>
@@ -91,7 +93,7 @@ export function Story() {
           sizes="100vw"
           className={cn("object-cover transition-opacity duration-700", ready && "opacity-0")}
         />
-        {mode === "live" ? (
+        {mode === "live" && mount ? (
           <div className={cn("absolute inset-0 transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")}>
             <StoryCanvas
               key={layout}
@@ -137,7 +139,7 @@ function Hero({ progress }: { progress: MotionValue<number> }) {
     >
       <div className="mx-auto w-full max-w-6xl">
         <div className="max-w-xl">
-          <h1 id="hero-title" className="text-hero font-semibold [font-variation-settings:'wdth'_100,'opsz'_96]">
+          <h1 id="hero-title" className="text-hero font-semibold">
             Take your iPLEDGE test at home.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-relaxed text-mist/85 sm:text-xl">

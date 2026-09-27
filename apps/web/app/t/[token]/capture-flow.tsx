@@ -335,7 +335,6 @@ export function CaptureFlow({
               <button
                 type="button"
                 aria-pressed={voice}
-                aria-label={c.voiceLabel}
                 onClick={toggleVoice}
                 className={cn(
                   "inline-flex h-12 items-center justify-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors",
@@ -343,7 +342,7 @@ export function CaptureFlow({
                 )}
               >
                 {voice ? <Volume2Icon className="size-4" aria-hidden /> : <VolumeXIcon className="size-4" aria-hidden />}
-                <span aria-hidden>{voice ? c.voiceOn : c.voiceOff}</span>
+                {c.voiceLabel}
               </button>
             </div>
             {/* Crop the empty stage above and below the test; the canvas keeps its own aspect. */}

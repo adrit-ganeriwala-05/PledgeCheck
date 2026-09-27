@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { liveTestModelCount, testModelsReleased, trackCanvas } from "./release";
@@ -39,11 +39,16 @@ describe("TestModel fallbacks", () => {
     expect(screen.queryByTestId("live-scene")).not.toBeInTheDocument();
   });
 
-  it("mounts the live scene when WebGL is available and motion is allowed", () => {
+  it("on a phone, mounts the live scene only after the first interaction", async () => {
     mockMedia(false);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ getExtension: () => null } as never);
     render(<TestModel alt="A pregnancy test" />);
-    expect(screen.getByTestId("live-scene")).toBeInTheDocument();
+    // Poster only while the page becomes interactive.
+    expect(screen.queryByTestId("live-scene")).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.pointerDown(window);
+    });
+    expect(await screen.findByTestId("live-scene")).toBeInTheDocument();
   });
 });
 

@@ -12,8 +12,6 @@ type Copy = {
   duration: string;
   languageLabel: string;
   voiceLabel: string;
-  voiceOn: string;
-  voiceOff: string;
   next: string;
   stepOf: (n: number) => string;
   howTitle: string;
@@ -46,9 +44,7 @@ export const PATIENT_COPY: Record<Language, Copy> = {
     privacy: "We never store your name or ID.",
     duration: "About 2 minutes",
     languageLabel: "Language",
-    voiceLabel: "Voice guidance",
-    voiceOn: "Voice on",
-    voiceOff: "Voice off",
+    voiceLabel: "Voice",
     next: "See how it works",
     stepOf: (n) => `Step ${n} of ${STEP_COUNT}`,
     howTitle: "How to photograph your test",
@@ -88,9 +84,7 @@ export const PATIENT_COPY: Record<Language, Copy> = {
     privacy: "Nunca guardamos su nombre ni su identificación.",
     duration: "Unos 2 minutos",
     languageLabel: "Idioma",
-    voiceLabel: "Guía por voz",
-    voiceOn: "Voz activada",
-    voiceOff: "Voz desactivada",
+    voiceLabel: "Voz",
     next: "Ver cómo funciona",
     stepOf: (n) => `Paso ${n} de ${STEP_COUNT}`,
     howTitle: "Cómo fotografiar su prueba",

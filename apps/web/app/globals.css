@@ -155,7 +155,6 @@
   }
   h1, h2, h3 {
     font-family: var(--font-heading);
-    font-variation-settings: "wdth" 100;
     letter-spacing: -0.02em;
     text-wrap: balance;
   }

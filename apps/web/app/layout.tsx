@@ -5,19 +5,19 @@ import { MotionProvider } from "@/components/brand/motion-provider";
 
 import "./globals.css";
 
-// Display face for headlines; its width and optical-size axes give it character at large sizes.
+// Display face for headlines; its optical-size axis tightens it at large sizes. The latin subset
+// covers Spanish (á é í ó ú ñ ¿ ¡), which keeps the font files small on phones.
 const display = Bricolage_Grotesque({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin"],
   variable: "--font-bricolage",
-  axes: ["wdth", "opsz"],
+  axes: ["opsz"],
   display: "swap",
 });
 
 // UI and body face: legible at small sizes, with tabular figures for countdowns and codes.
 const body = Instrument_Sans({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin"],
   variable: "--font-instrument",
-  axes: ["wdth"],
   display: "swap",
 });
 
