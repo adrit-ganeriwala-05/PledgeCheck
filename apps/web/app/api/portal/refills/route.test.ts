@@ -21,6 +21,8 @@ function setup(opts: {
   patientRow?: Record<string, unknown> | null;
   openRequests?: unknown[];
   openError?: { message: string } | null;
+  /** Earlier requests, newest first, as loadFailedTestRun reads them. */
+  history?: unknown[];
   insert?: Result;
 } = {}) {
   const user = opts.user === undefined ? USER : opts.user;
@@ -45,6 +47,10 @@ function setup(opts: {
         if (isInsert) {
           return opts.insert ?? { data: { id: REFILL, created_at: "2026-09-27T00:00:00.000Z" }, error: null };
         }
+        // Only loadFailedTestRun joins test_requests; the open-request check selects just id.
+        if (calls.some((c) => c.method === "select" && String(c.args[0]).includes("test_requests"))) {
+          return { data: opts.history ?? [], error: null };
+        }
         if (opts.openError) return { data: null, error: opts.openError };
         return { data: opts.openRequests ?? [], error: null };
       },
@@ -52,6 +58,22 @@ function setup(opts: {
   });
   mocks.client = mock.client;
   return mock;
+}
+
+/** A past request whose test a prescriber rejected: portalStatus reads this as not_verified. */
+function failedTest(n: number) {
+  return {
+    id: `old-${n}`,
+    created_at: `2026-0${n}-01T00:00:00.000Z`,
+    status: "linked",
+    decline_reason: null,
+    decided_at: `2026-0${n}-01T01:00:00.000Z`,
+    test_request_id: `req-${n}`,
+    test_requests: {
+      expires_at: `2026-0${n}-02T00:00:00.000Z`,
+      submissions: { captured_at: `2026-0${n}-01T02:00:00.000Z`, status: "rejected", reviews: null, windows: null },
+    },
+  };
 }
 
 beforeEach(() => {
@@ -98,6 +120,22 @@ describe("POST /api/portal/refills", () => {
     const res = await POST();
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "already_pending" });
+    expect(mocks.appendAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("one failed test still earns another link", async () => {
+    setup({ history: [failedTest(1)] });
+    const res = await POST();
+    expect(res.status).toBe(201);
+    expect(mocks.appendAuditEvent).toHaveBeenCalled();
+  });
+
+  it("409 clinic_visit_required after two failed tests in a row, and nothing is created", async () => {
+    const mock = setup({ history: [failedTest(2), failedTest(1)] });
+    const res = await POST();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "clinic_visit_required" });
+    expect(mock.queries.refill_requests.flat().some((c) => c.method === "insert")).toBe(false);
     expect(mocks.appendAuditEvent).not.toHaveBeenCalled();
   });
 

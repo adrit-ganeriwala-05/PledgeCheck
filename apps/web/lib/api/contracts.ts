@@ -65,8 +65,14 @@ export type Cycle = {
   pickupDeadline: string | null;
   declineReason: string | null;
   rejectReason: string | null;
-  /** After a decline: whether the patient may request again now. */
+  /** After an exit (declined, rejected, expired): whether the patient may request again now. */
   canRequestAgain: boolean;
+  /**
+   * Set once the patient has used every home attempt in this run of failures
+   * (lib/portal/attempts.ts). The portal stops offering a new request and asks them to come
+   * in, which is what POST /api/portal/refills enforces with 409 clinic_visit_required.
+   */
+  clinicVisitRequired: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -85,8 +91,12 @@ export type CycleResponse = { cycle: Cycle | null };
 export type CycleError = "not_enrolled";
 
 export type RefillCreateResponse = { requestId: string; createdAt: string };
-/** POST /api/portal/refills answers 409 already_pending; 403 when the login has no patient row. */
-export type RefillCreateError = "already_pending" | "not_enrolled";
+/**
+ * POST /api/portal/refills answers 409 already_pending while a request is open and 409
+ * clinic_visit_required once the home attempts are used up; 403 when the login has no
+ * patient row.
+ */
+export type RefillCreateError = "already_pending" | "clinic_visit_required" | "not_enrolled";
 
 // ---------------------------------------------------------------------------
 // Patient auth (Supabase Auth, called from the browser)

@@ -38,6 +38,7 @@ function cycle(status: CycleStatus, extra: Partial<Cycle> = {}): Cycle {
     declineReason: null,
     rejectReason: null,
     canRequestAgain: false,
+    clinicVisitRequired: false,
     ...extra,
   };
 }
@@ -62,7 +63,13 @@ describe("PortalHome cycle states", () => {
     ["approved, email failed", cycle("approved", { emailStatus: "failed" }), "Your clinic is resending your link", null],
     ["submitted", cycle("submitted"), "Submitted, your clinic will review it", null],
     ["in review", cycle("in_review"), "Submitted, your clinic will review it", null],
-    ["rejected", cycle("rejected", { rejectReason: "Blurry photo." }), "Your clinic asked for a new test", null],
+    ["rejected", cycle("rejected", { rejectReason: "Blurry photo." }), "Your test couldn't be verified", "Request again"],
+    [
+      "rejected twice",
+      cycle("rejected", { rejectReason: "Blurry photo.", clinicVisitRequired: true }),
+      "Please take this test at your clinic",
+      null,
+    ],
     ["expired", cycle("expired", { canRequestAgain: true }), "This request expired", "Request again"],
     ["window open", cycle("window_open", { pickupDeadline: new Date(Date.now() + 3 * DAY).toISOString() }), "Your prescription is ready for pickup", null],
     ["picked up", cycle("picked_up"), "This month is complete", "Request refill"],

@@ -275,7 +275,7 @@ export async function requestRefill(): Promise<ApiResult<RefillCreateResponse, R
     const createdAt = str(raw.body, "createdAt");
     return requestId && createdAt ? success({ requestId, createdAt }) : malformed(raw);
   }
-  return fail(raw, ["already_pending", "not_enrolled"] as const);
+  return fail(raw, ["already_pending", "clinic_visit_required", "not_enrolled"] as const);
 }
 
 // ---------------------------------------------------------------------------

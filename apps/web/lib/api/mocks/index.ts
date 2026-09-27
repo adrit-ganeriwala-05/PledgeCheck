@@ -223,6 +223,7 @@ export async function requestRefill(): Promise<ApiResult<RefillCreateResponse, R
       declineReason: null,
       rejectReason: null,
       canRequestAgain: false,
+      clinicVisitRequired: false,
     };
     d.cycleSubmissionId = null;
     d.cycleWindowId = null;
@@ -518,6 +519,7 @@ function scenarioCycle(scenario: Scenario): Cycle | null {
     declineReason: null,
     rejectReason: null,
     canRequestAgain: false,
+    clinicVisitRequired: false,
   };
   switch (scenario) {
     case "requested":

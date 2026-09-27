@@ -17,6 +17,7 @@ const BASE: CycleSource = {
   windowClosesAt: null,
   windowFilledAt: null,
   linkExpiresAt: null,
+  clinicVisitRequired: false,
 };
 
 const ALL_PORTAL_STATUSES = Object.keys(STATUS_TEXT) as PortalStatus[];

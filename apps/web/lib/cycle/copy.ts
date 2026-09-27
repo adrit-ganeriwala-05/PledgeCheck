@@ -54,11 +54,22 @@ export function patientView(cycle: Cycle | null): PatientView {
         action: null,
       };
     case "rejected":
+      // A second failure in a row ends the home loop: the clinic sees the patient rather than
+      // reading another photo. POST /api/portal/refills refuses it too, so the button is only
+      // offered where the server would accept it.
+      if (cycle.clinicVisitRequired) {
+        return {
+          key: "rejected_clinic_visit",
+          title: "Please take this test at your clinic",
+          body: "Two home tests in a row couldn't be verified, so this one needs to be done at your clinic. Contact them to arrange a visit. You can test at home again after that.",
+          action: null,
+        };
+      }
       return {
         key: "rejected",
-        title: "Your clinic asked for a new test",
-        body: "Your clinic will be in touch about the next step. Any new test link comes to your email.",
-        action: null,
+        title: "Your test couldn't be verified",
+        body: "This happens, and a photo can simply be hard to read. Request another refill and you can take a new test: your clinic approves the request, then emails you a new link.",
+        action: "request_again",
       };
     case "window_open":
       return {

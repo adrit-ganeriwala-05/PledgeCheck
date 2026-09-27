@@ -28,6 +28,11 @@ export type CycleSource = {
   windowFilledAt: string | null;
   /** When the issued test link stops working. */
   linkExpiresAt: string | null;
+  /**
+   * Whether the patient has used up their home attempts (lib/portal/attempts.ts). Counted
+   * across their earlier requests, so it is passed in rather than derived from this one row.
+   */
+  clinicVisitRequired: boolean;
 };
 
 /** PortalStatus is what the backend derives; CycleStatus is what the screens render. */
@@ -46,9 +51,12 @@ const STATUS: Record<PortalStatus, CycleStatus> = {
 /**
  * Statuses that stop a patient asking again.
  *
- * Exactly one, because that is exactly what POST /api/portal/refills enforces: it refuses
- * with 409 already_pending only while a row is still `requested`. Blocking more here than
- * the server does would tell the patient "no" where the server would say yes.
+ * Exactly one, because that is exactly what POST /api/portal/refills enforces by status: it
+ * refuses with 409 already_pending only while a row is still `requested`. Blocking more here
+ * than the server does would tell the patient "no" where the server would say yes.
+ *
+ * Its other refusal, 409 clinic_visit_required, turns on how many tests failed in a row
+ * rather than on this status, so it travels on the cycle as `clinicVisitRequired`.
  */
 export const BLOCKING_STATUSES: readonly CycleStatus[] = ["requested"];
 
@@ -85,6 +93,7 @@ export function toCycle(source: CycleSource): Cycle {
     pickupDeadline: source.windowClosesAt,
     declineReason: source.declineReason,
     rejectReason: source.reviewReason,
-    canRequestAgain: !BLOCKING_STATUSES.includes(status),
+    canRequestAgain: !BLOCKING_STATUSES.includes(status) && !source.clinicVisitRequired,
+    clinicVisitRequired: source.clinicVisitRequired,
   };
 }

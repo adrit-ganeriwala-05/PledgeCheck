@@ -28,6 +28,9 @@ export const LOGIN_PATH = "/portal/login?next=%2Fportal";
 
 export const REQUEST_BLOCKED_NOTE = "You can request your next refill once this month's cycle is complete.";
 
+/** Shown if the run of failures ended while the button was still on screen. */
+export const CLINIC_VISIT_NOTE = "This test needs to be done at your clinic. Contact them to arrange a visit.";
+
 type State =
   | { kind: "loading" }
   | { kind: "signed_out" }
@@ -98,8 +101,11 @@ export function PortalHome() {
     const code = result.error.code;
     if (code === "unauthenticated") return router.replace(LOGIN_PATH);
     if (code === "already_pending") setNotice("You already have an open request. It's shown below.");
+    // The reload below replaces this with the clinic-visit view, which explains it properly;
+    // the notice only covers the case where the button was on screen as the run ended.
+    if (code === "clinic_visit_required") setNotice(CLINIC_VISIT_NOTE);
     // not_enrolled needs no notice: the reload below shows the enrollment form.
-    if (code !== "already_pending" && code !== "not_enrolled") {
+    if (code !== "already_pending" && code !== "clinic_visit_required" && code !== "not_enrolled") {
       setNotice("Could not send your request. Check your connection and try again.");
     }
     await load("initial");

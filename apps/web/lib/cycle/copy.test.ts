@@ -14,6 +14,7 @@ function cycle(status: CycleStatus, extra: Partial<Cycle> = {}): Cycle {
     declineReason: null,
     rejectReason: null,
     canRequestAgain: false,
+    clinicVisitRequired: false,
     ...extra,
   };
 }
@@ -47,7 +48,10 @@ describe("patient copy", () => {
     expect(patientView(cycle("approved", { emailStatus: "failed" })).action).toBeNull();
     expect(patientView(cycle("declined", { canRequestAgain: true })).action).toBe("request_again");
     expect(patientView(cycle("declined")).action).toBeNull();
-    expect(patientView(cycle("rejected")).action).toBeNull();
+    // A first failed test offers another go; a second in a row sends the patient in.
+    expect(patientView(cycle("rejected")).action).toBe("request_again");
+    expect(patientView(cycle("rejected", { clinicVisitRequired: true })).action).toBeNull();
+    expect(patientView(cycle("rejected", { clinicVisitRequired: true })).key).toBe("rejected_clinic_visit");
     expect(patientView(cycle("expired", { canRequestAgain: true })).action).toBe("request_again");
     expect(patientView(cycle("in_review")).title).toBe("Submitted, your clinic will review it");
   });
