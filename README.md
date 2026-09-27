@@ -26,8 +26,8 @@ Honest state of the build. Nothing is deployed yet.
 | Approvals end to end | Works locally; **needs a real phone over HTTPS** |
 | Login, patients screen, "issue link" | Built, tested: `/login` routes by role; `/patients` issues links (with QR code) and toggles home testing |
 | One-time link session and challenge code | Built, tested: the code stays hidden until the patient taps Start, and uploads need an active 40-minute session |
-| Hash-chained audit log | Built, tested: one writer (`lib/audit/append.ts`) through the `audit_append` database function; reviews, links, sessions, fraud rejections and fills are all logged. Verifier built; no verify screen yet |
-| Solana anchor | **Not built** |
+| Hash-chained audit log | Built, tested: one writer (`lib/audit/append.ts`) through the `audit_append` database function; reviews, links, sessions, fraud rejections and fills are all logged. Verify screen at `/audit`; see [`docs/AUDIT.md`](docs/AUDIT.md) |
+| Solana anchor | Built, tested: devnet memo of the chain head (Anchor now, and automatically every 10 events); verified against the on-chain memo. Live anchor confirmed locally; not yet on the deployed app |
 | ElevenLabs voice clips | Generator written; **clips not generated**, so the capture page falls back to on-screen text |
 | Tiger Data | Schema and writes exist; **no warehouse provisioned**, and only `filled` events are written today |
 | OpenCV reader | **Uncalibrated**, confidence capped at 0.50, so every submission lands in `needs_review` until real test photos exist |
