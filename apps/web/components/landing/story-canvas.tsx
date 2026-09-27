@@ -78,6 +78,7 @@ export const LAYOUTS: Record<Layout, LayoutConfig> = {
 };
 
 const BLOCK = 5.4;
+const TEST_LENGTH = 12.6;
 const CHAIN_GAP = 7.4;
 const PAST_BLOCKS = 2;
 const DEMO_CODE = "K7R4";
@@ -180,6 +181,7 @@ function Story({
   const cam = useMemo(() => new THREE.Vector3(), []);
   const look = useMemo(() => new THREE.Vector3(), []);
   const tmp = useMemo(() => new THREE.Vector3(), []);
+  const center = useMemo(() => new THREE.Vector3(), []);
 
   // The one orchestrated moment on load: after a beat, the control line develops.
   const invalidate = useThree((s) => s.invalidate);
@@ -198,7 +200,8 @@ function Story({
   const driven = useMemo(
     () => ({
       line: { get: () => developed.current },
-      cap: { get: () => ease(seg(t.current, 0.05, 0.22)) },
+      // Off in chapter 1, back on before the test goes into its block.
+      cap: { get: () => ease(seg(t.current, 0.05, 0.22)) * (1 - ease(seg(t.current, 0.47, 0.6))) },
       code: { get: () => seg(t.current, 0.3, 0.42) },
     }),
     [],
@@ -224,7 +227,10 @@ function Story({
       const tilt = idle ? state.pointer.x * 0.12 * (1 - face) : 0;
       lerp3(r.position, L.heroPos, L.facePos, face);
       r.rotation.set(L.faceTilt * face, L.heroYaw + (L.faceYaw - L.heroYaw) * face + sway + tilt, 0);
-      r.scale.setScalar(1 - 0.7 * glass);
+      r.scale.setScalar(1 - 0.74 * glass);
+      // Center the test in its block: its own middle sits a little off its origin.
+      center.set(-0.3, REST_Y + 0.4, 0).applyEuler(r.rotation).multiplyScalar(r.scale.x * glass);
+      r.position.sub(center);
       if (mirror.current) {
         mirror.current.position.copy(r.position);
         mirror.current.rotation.copy(r.rotation);
@@ -244,9 +250,11 @@ function Story({
       });
     }
 
-    // The glass block grows around the test.
+    // The frame becomes the glass block: it appears at the viewfinder's size and closes in with
+    // the test, always large enough to hold it (the test is about 12.6 units long unscaled).
     if (block.current) {
-      block.current.scale.setScalar(Math.max(0.0001, glass));
+      const testScale = 1 - 0.74 * glass;
+      block.current.scale.setScalar(Math.max(1, (TEST_LENGTH * testScale) / (BLOCK * 0.84)));
       block.current.visible = glass > 0.001;
     }
 
@@ -271,14 +279,22 @@ function Story({
         : new THREE.MeshPhysicalMaterial({
             color: "#ffffff",
             transmission: 1,
-            thickness: 4,
-            roughness: 0.05,
-            ior: 1.46,
-            clearcoat: 1,
-            clearcoatRoughness: 0.08,
-            attenuationColor: new THREE.Color("#eadcff"),
-            attenuationDistance: 14,
-            specularIntensity: 1,
+            // Thin-walled, like an acrylic display block: a strong refraction offset duplicates
+            // the test at the rounded edges, which reads as a glitch.
+            thickness: 0.35,
+            roughness: 0.16,
+            ior: 1.3,
+            attenuationColor: new THREE.Color("#efe4ff"),
+            attenuationDistance: 30,
+            specularIntensity: 0.6,
+            envMapIntensity: 0.7,
+            // On a black stage clear glass shows only where it catches light. A soft grazing-angle
+            // sheen and a trace of iridescence give every face and edge a presence.
+            sheen: 0.45,
+            sheenRoughness: 0.25,
+            sheenColor: new THREE.Color("#4a3c80"),
+            iridescence: 0.2,
+            iridescenceIOR: 1.3,
           }),
     [tier],
   );
