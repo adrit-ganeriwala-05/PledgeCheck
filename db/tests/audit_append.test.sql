@@ -29,11 +29,11 @@ set local role service_role;
 -- ---------------------------------------------------------------------------
 select throws_ok(
   $$select public.audit_append(2, repeat('0', 64), repeat('a', 64), 'system', 'window.missed', null, '{}', now())$$,
-  '40001', 'audit_chain_conflict', 'empty table rejects seq 2');
+  'PT409', 'audit_chain_conflict', 'empty table rejects seq 2');
 
 select throws_ok(
   $$select public.audit_append(1, repeat('f', 64), repeat('a', 64), 'system', 'window.missed', null, '{}', now())$$,
-  '40001', 'audit_chain_conflict', 'empty table rejects a non-genesis prev_hash');
+  'PT409', 'audit_chain_conflict', 'empty table rejects a non-genesis prev_hash');
 
 select is(
   public.audit_append(1, repeat('0', 64), repeat('a', 64), 'system', 'window.missed', null, '{}', now()),
@@ -44,15 +44,15 @@ select is(
 -- ---------------------------------------------------------------------------
 select throws_ok(
   $$select public.audit_append(2, repeat('0', 64), repeat('b', 64), 'system', 'window.missed', null, '{}', now())$$,
-  '40001', 'audit_chain_conflict', 'stale prev_hash is rejected');
+  'PT409', 'audit_chain_conflict', 'stale prev_hash is rejected');
 
 select throws_ok(
   $$select public.audit_append(3, repeat('a', 64), repeat('b', 64), 'system', 'window.missed', null, '{}', now())$$,
-  '40001', 'audit_chain_conflict', 'skipped seq is rejected');
+  'PT409', 'audit_chain_conflict', 'skipped seq is rejected');
 
 select throws_ok(
   $$select public.audit_append(1, repeat('a', 64), repeat('b', 64), 'system', 'window.missed', null, '{}', now())$$,
-  '40001', 'audit_chain_conflict', 'repeated seq is rejected');
+  'PT409', 'audit_chain_conflict', 'repeated seq is rejected');
 
 select throws_ok(
   $$select public.audit_append(2, repeat('a', 64), 'not-a-hash', 'system', 'window.missed', null, '{}', now())$$,

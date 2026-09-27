@@ -24,7 +24,7 @@ const { appendAuditEvent, append, AuditAppendError, AuditValidationError } = awa
 const CLINICIAN = "clinician:a0000000-0000-0000-0000-000000000001";
 const REF = "a3000001-0000-0000-0000-000000000000";
 const HEAD_HASH = "1".repeat(64); // test vector
-const CONFLICT = { data: null, error: { code: "40001", message: "audit_chain_conflict" } };
+const CONFLICT = { data: null, error: { code: "PT409", message: "audit_chain_conflict" } };
 
 type RpcArgs = {
   p_seq: number;
@@ -87,6 +87,19 @@ describe("appendAuditEvent", () => {
     const newer = "2".repeat(64); // test vector
     state.heads = [{ seq: 4, hash: HEAD_HASH }, { seq: 5, hash: newer }];
     state.rpcResults = [CONFLICT];
+    const result = await appendAuditEvent({ actor: "system", action: "window.filled" });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpcArgs(1).p_seq).toBe(6);
+    expect(rpcArgs(1).p_prev_hash).toBe(newer);
+    expect(result.seq).toBe(6);
+  });
+
+  it("retries a lost insert race the same as a stale head", async () => {
+    const newer = "2".repeat(64); // test vector
+    state.heads = [{ seq: 4, hash: HEAD_HASH }, { seq: 5, hash: newer }];
+    state.rpcResults = [
+      { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "audit_events_pkey"' } },
+    ];
     const result = await appendAuditEvent({ actor: "system", action: "window.filled" });
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpcArgs(1).p_seq).toBe(6);
