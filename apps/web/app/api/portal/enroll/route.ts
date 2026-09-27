@@ -7,9 +7,12 @@
 // works: everywhere else a clinician acts first. It is safe here only because of what the
 // new row contains, and those values are the point, not incidental defaults:
 //
-//   home_testing_allowed = false   the patient cannot test at home until staff allow it
+//   home_testing_allowed = true    the prescriber's permission, pre-granted
 //   phase                = 'pre'   iPLEDGE rule 1 keeps a pre-treatment test in a medical
-//                                  setting, so the rules engine blocks a home test anyway
+//                                  setting. This is what actually holds a new patient:
+//                                  homeRefusal() checks phase before it checks the
+//                                  permission flag, and the rules engine blocks again at
+//                                  submission time via treatmentHasStarted()
 //   can_get_pregnant     = true    the conservative direction: testing requirements apply.
 //                                  false would remove them from the testing loop entirely,
 //                                  which is the dangerous value to guess wrong
@@ -80,7 +83,7 @@ export async function POST(request: Request) {
       practice_id: practiceId,
       pseudonym: generatePseudonym(),
       can_get_pregnant: true,
-      home_testing_allowed: false,
+      home_testing_allowed: true,
       phase: "pre",
       auth_user_id: auth.user.id,
       contact_email: auth.user.email ?? null,

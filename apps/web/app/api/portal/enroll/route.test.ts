@@ -92,8 +92,9 @@ describe("POST /api/portal/enroll", () => {
     const insert = admin.queries.patients.flat().find((c) => c.method === "insert");
     const row = insert?.args[0] as Record<string, unknown>;
 
-    // The three that matter: a self-enrolled patient cannot cause a test to be accepted.
-    expect(row.home_testing_allowed).toBe(false);
+    // A self-enrolled patient still cannot cause a test to be accepted: phase 'pre' is
+    // what holds them, and homeRefusal() checks it before the permission flag.
+    expect(row.home_testing_allowed).toBe(true);
     expect(row.phase).toBe("pre");
     expect(row.can_get_pregnant).toBe(true);
 
@@ -107,7 +108,7 @@ describe("POST /api/portal/enroll", () => {
     const insert = admin.queries.patients.flat().find((c) => c.method === "insert");
     const row = insert?.args[0] as Record<string, unknown>;
     expect(row.auth_user_id).toBe(USER);
-    expect(row.home_testing_allowed).toBe(false);
+    expect(row.phase).toBe("pre");
   });
 
   it("puts no real name in the schema, only a generated pseudonym", async () => {
