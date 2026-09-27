@@ -114,6 +114,9 @@ export function CaptureFlow({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Bumped for every stream handed to streamRef, so the attach effect below runs again even
+  // if the <video> never unmounted in between.
+  const [streamId, setStreamId] = useState(0);
 
   const playClip = useCallback(
     (step: CaptureStep, lang: Language) => {
@@ -157,6 +160,26 @@ export function CaptureFlow({
   }, []);
 
   useEffect(() => stopCamera, [stopCamera]);
+
+  // Show the camera. This runs after the <video> is in the DOM, which is the whole point:
+  // it used to be a single requestAnimationFrame fired straight after setPhase("camera"),
+  // racing React's commit. When the frame won, videoRef.current was still null, the stream
+  // was never attached and nothing retried — so the patient got a black screen with the code
+  // and shutter drawn on top, no error and no way forward. Desktop usually lost that race
+  // harmlessly; a phone, busy with the entry animations and returning from the permission
+  // prompt, did not. An effect cannot lose it.
+  useEffect(() => {
+    if (phase !== "camera") return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    // jsdom and older browsers return undefined; a rejected play() must not go unhandled.
+    const played = video.play() as Promise<void> | undefined;
+    played?.catch(() => {
+      // autoPlay + muted + playsInline is what normally starts it; frames may arrive anyway.
+    });
+  }, [phase, streamId]);
 
   const phaseRef = useRef(phase);
   useEffect(() => {
@@ -237,14 +260,9 @@ export function CaptureFlow({
         audio: false,
       });
       streamRef.current = stream;
+      // The <video> does not exist yet; the effect below attaches the stream once it does.
+      setStreamId((n) => n + 1);
       setPhase("camera");
-      // The <video> mounts with the phase change, so attach on the next frame.
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      });
     } catch {
       setCameraError(t.cameraBlocked);
       setPhase((p) => (p === "camera" ? "code" : p));

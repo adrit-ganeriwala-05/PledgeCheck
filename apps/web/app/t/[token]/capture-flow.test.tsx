@@ -12,6 +12,15 @@ import { PATIENT_COPY } from "./copy";
 
 const TOKEN = "t".repeat(43);
 let fetchMock: ReturnType<typeof vi.fn>;
+let getUserMedia: ReturnType<typeof vi.fn>;
+
+/** jsdom has no camera. A MediaStream only has to be stoppable and identifiable here. */
+function fakeStream() {
+  const track = { stop: vi.fn(), kind: "video" };
+  const stream = { getTracks: () => [track], getVideoTracks: () => [track] } as unknown as MediaStream;
+  getUserMedia.mockResolvedValue(stream);
+  return stream;
+}
 
 function reply(status: number, body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
@@ -31,6 +40,12 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   // jsdom has no media playback; the voice clips are optional anyway.
   vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+  // jsdom has no navigator.mediaDevices at all, so it has to be defined, not just spied on.
+  getUserMedia = vi.fn().mockRejectedValue(new DOMException("no camera", "NotFoundError"));
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: { getUserMedia },
+  });
 });
 
 afterEach(() => {
@@ -94,6 +109,51 @@ describe("CaptureFlow session start", () => {
     expect(fetchMock).toHaveBeenCalledWith(`/api/t/${TOKEN}/start`, { method: "POST" });
     expect(screen.getByRole("timer")).toHaveTextContent(/Time left: (40:00|39:5\d)/);
     expect(screen.getByRole("button", { name: UI_TEXT.en.openCamera })).toBeInTheDocument();
+  });
+
+  it("shows the live camera: the stream reaches the <video>, even if no animation frame runs", async () => {
+    // The bug this pins: the stream used to be attached inside a one-shot
+    // requestAnimationFrame fired right after setPhase("camera"). If that frame ran before
+    // React committed the <video>, the ref was null and nothing ever retried — a black
+    // screen with the code and shutter over it. Here rAF never fires at all, which is the
+    // worst case of that race, and the preview must still come up.
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+    const stream = fakeStream();
+    fetchMock.mockReturnValue(started(40));
+
+    render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
+    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
+    await screen.findByTestId("challenge-code");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.openCamera }));
+    });
+
+    const video = document.querySelector("video");
+    expect(video).toBeInTheDocument();
+    expect(video?.srcObject).toBe(stream);
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    // No error shown, and the shutter is there to press.
+    expect(screen.queryByText(UI_TEXT.en.cameraBlocked)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: PATIENT_COPY.en.shutter })).toBeInTheDocument();
+  });
+
+  it("a refused camera says so and stays on the code step", async () => {
+    getUserMedia.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+    fetchMock.mockReturnValue(started(40));
+
+    render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
+    fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
+    await screen.findByTestId("challenge-code");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.openCamera }));
+    });
+
+    expect(await screen.findByText(UI_TEXT.en.cameraBlocked)).toBeInTheDocument();
+    expect(document.querySelector("video")).not.toBeInTheDocument();
   });
 
   it("offers Continue when the session was already started, and gets the code the same way", async () => {
