@@ -48,12 +48,12 @@ function Reader(props: { title: string; result: string | null; confidence: numbe
   return (
     <div className={cn("rounded-lg border border-line bg-ink/40 p-3", missing && "border-dashed")}>
       <p className="text-xs text-haze">{props.title}</p>
-      <p className={cn("mt-0.5 text-lg font-semibold capitalize", missing ? "text-haze" : "text-mist")}>
+      <p className={cn("mt-0.5 text-lg font-semibold first-letter:uppercase", missing ? "text-haze" : "text-mist")}>
         {formatRead(props.result)}
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <div
-          className="h-1 flex-1 overflow-hidden rounded-full bg-line"
+          className="h-1 min-w-12 flex-1 overflow-hidden rounded-full bg-line"
           role="meter"
           aria-label={`${props.title} confidence`}
           aria-valuemin={0}
@@ -82,7 +82,7 @@ function CodeRow({ grok }: { grok: QueueCard["grok"] }) {
   return (
     <p className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm">
       <span className="text-haze">
-        Code read <span className="tabular ml-1 text-base font-semibold tracking-[0.18em] text-mist">{grok.code}</span>
+        Code read <span className="tabular ml-1 text-base font-semibold tracking-[0.08em] text-mist">{grok.code}</span>
       </span>
       {grok.codeMatches ? (
         <span className="inline-flex items-center gap-1 font-medium text-ok">

@@ -3,11 +3,12 @@
 import { CircleDashedIcon, TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 
+import { describeAgreement } from "@/lib/clinic/format";
 import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
 import { cn } from "@/lib/utils";
 
 import { FlagBadges } from "./flag-badges";
-import { degradedNotes } from "./flags";
+import { degradedNotes, flagLabel, flagSeverity } from "./flags";
 import { PhotoViewer } from "./photo-viewer";
 import { ReadersPanel } from "./readers-panel";
 import { ReviewActions, type ReviewActionsHandle, type ReviewOutcome } from "./review-actions";
@@ -63,8 +64,16 @@ export function QueueCard({ card, onResolved, isNew = false }: Props) {
   }
 
   const needsReview = card.status === "needs_review";
-  const reasons = needsReview ? closerReviewReasons(card) : [];
   const degraded = degradedNotes(card);
+  // The degraded banner already says which reader or check did not run; don't repeat it here.
+  const readerMissing = card.grok.result === null || card.opencv.result === null;
+  const degradedLabels = new Set(
+    card.flags.filter((f) => flagSeverity(f) === "degraded").map((f) => `Flag: ${flagLabel(f).label}`),
+  );
+  const missingReaderLine = readerMissing ? describeAgreement(card) : null;
+  const reasons = (needsReview ? closerReviewReasons(card) : []).filter(
+    (r) => !degradedLabels.has(r) && r !== missingReaderLine,
+  );
 
   return (
     <div
@@ -106,30 +115,33 @@ export function QueueCard({ card, onResolved, isNew = false }: Props) {
         <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
       </header>
 
-      {needsReview ? (
-        <div className="mt-3 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2.5 text-mist">
-          <p className="flex items-center gap-1.5 font-semibold text-warn">
-            <TriangleAlertIcon className="size-4" aria-hidden />
-            Needs closer review
-          </p>
-          {reasons.length > 0 ? (
-            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm marker:text-warn">
-              {reasons.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
+      {needsReview || degraded.length > 0 ? (
+        <div className="mt-3 space-y-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2.5 text-mist">
+          {needsReview ? (
+            <div>
+              <p className="flex items-center gap-1.5 font-semibold text-warn">
+                <TriangleAlertIcon className="size-4" aria-hidden />
+                Needs closer review
+              </p>
+              {reasons.length > 0 ? (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm marker:text-warn">
+                  {reasons.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {degraded.length > 0 ? (
-        <div role="note" aria-label="Checks that did not run" className="mt-3 rounded-xl border border-dashed border-warn/50 px-3 py-2.5">
-          {degraded.map((note) => (
-            <p key={note} className="flex items-start gap-1.5 text-sm text-warn">
-              <CircleDashedIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>{note}</span>
-            </p>
-          ))}
+          {degraded.length > 0 ? (
+            <div role="note" aria-label="Checks that did not run" className="space-y-1">
+              {degraded.map((note) => (
+                <p key={note} className="flex items-start gap-1.5 text-sm font-medium text-warn">
+                  <CircleDashedIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{note}</span>
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

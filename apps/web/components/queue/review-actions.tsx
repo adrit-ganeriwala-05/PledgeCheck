@@ -146,8 +146,8 @@ function Kbd({ children, tone = "light" }: { children: React.ReactNode; tone?: "
       aria-hidden
       className={
         tone === "dark"
-          ? "inline-grid size-6 place-items-center rounded-md bg-black/15 text-xs font-semibold"
-          : "inline-grid size-6 place-items-center rounded-md border border-line text-xs font-semibold text-haze"
+          ? "hidden size-6 place-items-center rounded-md bg-black/15 text-xs font-semibold sm:inline-grid"
+          : "hidden size-6 place-items-center rounded-md border border-line text-xs font-semibold text-haze sm:inline-grid"
       }
     >
       {children}

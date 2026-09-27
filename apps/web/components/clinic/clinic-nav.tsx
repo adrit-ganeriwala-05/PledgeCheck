@@ -20,9 +20,9 @@ export function ClinicNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Clinic" className="sticky top-0 z-40 border-b border-line bg-ink/85 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-2.5 sm:gap-6">
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-6 sm:px-4">
         <Wordmark size="sm" className="hidden sm:inline-flex" />
-        <ul className="flex flex-1 gap-1 overflow-x-auto text-sm">
+        <ul className="flex flex-1 gap-0.5 overflow-x-auto text-sm sm:gap-1">
           {CLINIC_LINKS.map((link) => {
             const current = pathname?.startsWith(link.href) ?? false;
             return (
@@ -31,7 +31,7 @@ export function ClinicNav() {
                   href={link.href}
                   aria-current={current ? "page" : undefined}
                   className={cn(
-                    "inline-flex h-9 items-center rounded-md px-3 font-medium transition-colors",
+                    "inline-flex h-9 items-center rounded-md px-2.5 font-medium transition-colors sm:px-3",
                     current ? "bg-raised text-mist shadow-[inset_0_-2px_0_var(--orchid)]" : "text-haze hover:bg-surface hover:text-mist",
                   )}
                 >

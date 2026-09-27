@@ -38,7 +38,7 @@ export function AnchorNowButton({ onAnchored }: { onAnchored?: (anchor: AnchorRe
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button type="button" variant="outline" onClick={anchor} disabled={pending} aria-busy={pending}>
+      <Button type="button" variant="outline" size="lg" onClick={anchor} disabled={pending} aria-busy={pending}>
         {pending ? "Anchoring…" : outcome?.kind === "error" ? "Try anchoring again" : "Anchor now"}
       </Button>
       <div aria-live="polite" className="text-sm">
