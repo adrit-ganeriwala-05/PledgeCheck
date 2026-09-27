@@ -84,9 +84,13 @@ export function CaptureFlow({
     if (!step || !audio || phase === "intro") return;
 
     audio.src = clipPath(language, step);
-    audio.play().catch(() => {
-      // No clip generated yet, or the browser refused. The text is on screen.
-    });
+    // Older browsers (and jsdom) return undefined instead of a promise.
+    const played = audio.play() as Promise<void> | undefined;
+    if (played) {
+      played.catch(() => {
+        // No clip generated yet, or the browser refused. The text is on screen.
+      });
+    }
   }, [phase, language]);
 
   const stopCamera = useCallback(() => {
