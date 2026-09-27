@@ -6,6 +6,7 @@
 import { getClinician } from "@/lib/clinic/auth";
 import { createClient } from "@/lib/supabase/server";
 
+import { SweepButton } from "./sweep-button";
 import { WindowList, type WindowRow } from "./window-list";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +72,9 @@ export default async function WindowsPage() {
 
   return (
     <Shell>
+      <div className="mb-4">
+        <SweepButton />
+      </div>
       <WindowList rows={rows} />
     </Shell>
   );
