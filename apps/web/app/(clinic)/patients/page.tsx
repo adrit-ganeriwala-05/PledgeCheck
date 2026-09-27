@@ -7,7 +7,8 @@ import { destinationFor } from "@/app/login/destination";
 import { getClinician } from "@/lib/clinic/auth";
 import { createClient } from "@/lib/supabase/server";
 
-import { loadPatients, type PatientRow } from "./load";
+import { loadPatients, loadPendingRefills, type PatientRow } from "./load";
+import { RefillQueue, type PendingRefill } from "./refill-queue";
 import { PatientsTable } from "./patients-table";
 
 export const metadata: Metadata = { title: "Patients · PledgeCheck" };
@@ -25,6 +26,14 @@ export default async function PatientsPage() {
     console.error("[patients] load failed", err instanceof Error ? err.message : "unknown");
   }
 
+  // A refill queue that fails to load must not take the patient list down with it.
+  let refills: PendingRefill[] = [];
+  try {
+    refills = await loadPendingRefills(supabase);
+  } catch (err) {
+    console.error("[patients] refill queue load failed", err instanceof Error ? err.message : "unknown");
+  }
+
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
       <header className="space-y-1">
@@ -33,6 +42,7 @@ export default async function PatientsPage() {
           Issue a one-time test link. The challenge code stays hidden until the patient taps Start.
         </p>
       </header>
+      <RefillQueue refills={refills} />
       {patients ? (
         <PatientsTable patients={patients} />
       ) : (

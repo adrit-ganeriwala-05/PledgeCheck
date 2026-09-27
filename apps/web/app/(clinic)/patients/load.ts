@@ -82,3 +82,35 @@ export async function loadPatients(
     latest: latest.get(p.id) ?? null,
   }));
 }
+
+/**
+ * Refill requests still waiting on a decision, for this clinician's practice.
+ *
+ * Read as the signed-in clinician, so refill_requests_select (db/policies.sql) is what
+ * limits it to their practice rather than a filter written here.
+ */
+export async function loadPendingRefills(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ id: string; pseudonym: string; createdAt: string; contactEmail: string | null }[]> {
+  const { data, error } = await supabase
+    .from("refill_requests")
+    .select("id, created_at, patients(pseudonym, contact_email)")
+    .eq("status", "requested")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`could not load refill requests: ${error.message}`);
+
+  return (data ?? []).map((row) => {
+    const r = row as unknown as {
+      id: string;
+      created_at: string;
+      patients: { pseudonym: string; contact_email: string | null } | { pseudonym: string; contact_email: string | null }[] | null;
+    };
+    const patient = Array.isArray(r.patients) ? r.patients[0] : r.patients;
+    return {
+      id: r.id,
+      pseudonym: patient?.pseudonym ?? "Unknown patient",
+      createdAt: r.created_at,
+      contactEmail: patient?.contact_email ?? null,
+    };
+  });
+}

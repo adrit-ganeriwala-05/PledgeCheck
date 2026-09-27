@@ -10,13 +10,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { appendAuditEvent } from "@/lib/audit/append";
 import { getClinician } from "@/lib/clinic/auth";
-import { generateChallengeCode } from "@/lib/fraud/code";
+import { issueTestLink } from "@/lib/clinic/issue-link";
 import { homeRefusal } from "@/lib/fraud/home-guards";
-import { linkExpiresAt } from "@/lib/fraud/session";
-import { generateToken, hashToken } from "@/lib/fraud/token";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -67,46 +63,15 @@ export async function POST(request: Request) {
     if (refusal) return fail(409, "home_testing_not_allowed", { reason: refusal });
   }
 
-  const token = generateToken();
-  const expiresAt = linkExpiresAt(new Date()).toISOString();
-
-  const admin = createAdminClient();
-  const { data: created, error: insertError } = await admin
-    .from("test_requests")
-    .insert({
-      patient_id: patient.id,
-      token_hash: hashToken(token),
-      challenge_code: generateChallengeCode(),
-      setting,
-      expires_at: expiresAt,
-      created_by: clinician.id,
-    })
-    .select("id")
-    .single();
-  if (insertError || !created) {
-    console.error("[requests] insert failed", insertError?.message ?? "no row");
-    return fail(500, "issue_failed");
-  }
-
-  // No link leaves the server without its audit event. On failure the row is orphaned
-  // but unusable: nobody ever sees its token.
-  try {
-    await appendAuditEvent({
-      actor: `clinician:${clinician.id}`,
-      action: "request.issued",
-      refId: created.id,
-      payload: { setting },
-    });
-  } catch (err) {
-    console.error("[requests] AUDIT EVENT NOT WRITTEN — link withheld", {
-      requestId: created.id,
-      cause: err instanceof Error ? err.message : "unknown",
-    });
-    return fail(500, "audit_failed");
-  }
+  const issued = await issueTestLink({ patientId: patient.id, setting, clinicianId: clinician.id });
+  if (!issued.ok) return fail(500, issued.error);
 
   return NextResponse.json(
-    { requestId: created.id, link: `${linkOrigin(request)}/t/${token}`, expiresAt },
+    {
+      requestId: issued.requestId,
+      link: `${linkOrigin(request)}/t/${issued.token}`,
+      expiresAt: issued.expiresAt,
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
