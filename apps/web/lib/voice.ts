@@ -50,13 +50,13 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
   en: {
     title: "Home pregnancy test",
     codeLabel: "Write this code on the test",
-    start: "Start",
+    start: "Start test",
     openCamera: "Open camera",
     takePhoto: "Take photo",
     retake: "Retake",
-    send: "Send to my clinic",
+    send: "Submit test",
     sending: "Sending…",
-    sentTitle: "Received",
+    sentTitle: "Sent to your clinic",
     cameraBlocked:
       "This page needs your camera. Allow camera access in your browser, then reload. Photos cannot be uploaded from your gallery.",
     linkProblem: "This link cannot be used",
@@ -70,13 +70,13 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
   es: {
     title: "Prueba de embarazo en casa",
     codeLabel: "Escriba este código en la prueba",
-    start: "Comenzar",
+    start: "Comenzar prueba",
     openCamera: "Abrir cámara",
     takePhoto: "Tomar foto",
     retake: "Repetir",
-    send: "Enviar a mi clínica",
+    send: "Enviar prueba",
     sending: "Enviando…",
-    sentTitle: "Recibido",
+    sentTitle: "Enviada a su clínica",
     cameraBlocked:
       "Esta página necesita su cámara. Permita el acceso a la cámara en su navegador y recargue. No se pueden subir fotos desde la galería.",
     linkProblem: "Este enlace no se puede usar",

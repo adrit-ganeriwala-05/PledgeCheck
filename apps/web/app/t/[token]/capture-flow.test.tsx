@@ -8,6 +8,7 @@ configure({ asyncUtilTimeout: 5000 });
 import { LINK_PROBLEM_TEXT, UI_TEXT } from "@/lib/voice";
 
 import { CaptureFlow, formatRemaining } from "./capture-flow";
+import { PATIENT_COPY } from "./copy";
 
 const TOKEN = "t".repeat(43);
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -38,6 +39,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** Welcome, then "how to photograph", where Start lives. */
+function goToStart(language: "en" | "es" = "en") {
+  fireEvent.click(screen.getByRole("button", { name: PATIENT_COPY[language].next }));
+}
+
 describe("formatRemaining", () => {
   it("formats mm:ss and never goes negative", () => {
     expect(formatRemaining(40 * 60_000)).toBe("40:00");
@@ -48,16 +54,40 @@ describe("formatRemaining", () => {
 });
 
 describe("CaptureFlow session start", () => {
-  it("shows no code before Start", () => {
-    render(<CaptureFlow token={TOKEN} language="en" />);
+  it("shows no code before Start, on the welcome or the how-to step", () => {
+    const { container } = render(<CaptureFlow token={TOKEN} language="en" />);
+    expect(screen.queryByTestId("challenge-code")).not.toBeInTheDocument();
+    goToStart();
     expect(screen.queryByTestId("challenge-code")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: UI_TEXT.en.start })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.innerHTML).not.toMatch(/K7Q2/);
+  });
+
+  it("has no file input and no gallery upload anywhere", () => {
+    const { container } = render(<CaptureFlow token={TOKEN} language="en" />);
+    expect(container.querySelector("input[type=file]")).toBeNull();
+    goToStart();
+    expect(container.querySelector("input[type=file]")).toBeNull();
+  });
+
+  it("switches language and voice guidance on the welcome step", () => {
+    render(<CaptureFlow token={TOKEN} language="en" />);
+    fireEvent.click(screen.getByRole("radio", { name: "Español" }));
+    expect(screen.getByRole("heading", { name: PATIENT_COPY.es.welcomeTitle })).toBeInTheDocument();
+    const voice = screen.getByRole("button", { name: PATIENT_COPY.es.voiceLabel });
+    expect(voice).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(voice);
+    expect(voice).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(voice);
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(document.querySelector("audio")?.getAttribute("src")).toBe("/audio/es/welcome.mp3");
   });
 
   it("Start calls the start route, then reveals the code with a countdown", async () => {
     fetchMock.mockReturnValue(started(40));
     render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
     fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
 
     expect(await screen.findByTestId("challenge-code")).toHaveTextContent("K7Q2");
@@ -79,6 +109,7 @@ describe("CaptureFlow session start", () => {
     async (state) => {
       fetchMock.mockReturnValue(reply(state === "invalid" ? 404 : 409, { ok: false, state }));
       render(<CaptureFlow token={TOKEN} language="en" />);
+      goToStart();
       fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
       expect(await screen.findByText(LINK_PROBLEM_TEXT.en[state])).toBeInTheDocument();
       expect(screen.queryByTestId("challenge-code")).not.toBeInTheDocument();
@@ -89,6 +120,7 @@ describe("CaptureFlow session start", () => {
   it("a network failure on Start can be retried", async () => {
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed")).mockReturnValueOnce(started(40));
     render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
     fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
     expect(await screen.findByText(UI_TEXT.en.startFailed)).toBeInTheDocument();
 
@@ -101,6 +133,7 @@ describe("CaptureFlow session start", () => {
   it("disables Start while starting", async () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
     fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
     expect(await screen.findByRole("button", { name: UI_TEXT.en.starting })).toBeDisabled();
   });
@@ -111,6 +144,7 @@ describe("CaptureFlow countdown", () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     fetchMock.mockReturnValue(started(1));
     render(<CaptureFlow token={TOKEN} language="en" />);
+    goToStart();
     fireEvent.click(screen.getByRole("button", { name: UI_TEXT.en.start }));
     await screen.findByTestId("challenge-code");
     // The code is on screen once React commits; flush effects so the countdown interval

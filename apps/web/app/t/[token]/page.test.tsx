@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LINK_PROBLEM_TEXT, UI_TEXT } from "@/lib/voice";
 
+import { PATIENT_COPY } from "./copy";
+
 const mocks = vi.hoisted(() => ({ getLinkStatus: vi.fn() }));
 vi.mock("@/lib/fraud/session", () => ({ getLinkStatus: mocks.getLinkStatus }));
 
@@ -21,10 +23,11 @@ beforeEach(() => {
 });
 
 describe("/t/[token] page", () => {
-  it("ready: shows Start and no code", async () => {
+  it("ready: shows the welcome step (Start comes after the how-to) and no code", async () => {
     mocks.getLinkStatus.mockResolvedValue({ ok: true, state: "ready", language: "en", sessionEndsAt: null, challengeCode: null });
     await renderPage();
-    expect(screen.getByRole("button", { name: UI_TEXT.en.start })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: PATIENT_COPY.en.next })).toBeInTheDocument();
+    expect(screen.queryByTestId("challenge-code")).not.toBeInTheDocument();
     expect(mocks.getLinkStatus).toHaveBeenCalledWith(TOKEN, expect.any(Date));
   });
 

@@ -90,6 +90,8 @@ export function TestModel({
   const [inView, setInView] = useState(true);
 
   useEffect(() => {
+    // No matchMedia (very old browsers, test environments): stay on the poster.
+    if (typeof window.matchMedia !== "function") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const decide = () => {
       if (reduced.matches || !hasWebGL()) {

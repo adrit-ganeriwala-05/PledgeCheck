@@ -240,9 +240,16 @@ export function codeInk(code: string | null): THREE.CanvasTexture {
     ctx.clearRect(0, 0, w, h);
     const rand = rng(code ? [...code].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) : 3);
     if (!code) {
-      ctx.strokeStyle = "rgba(120,110,140,0.75)";
-      ctx.lineWidth = 6;
+      // The spot where the patient writes the code: an orchid dashed outline around four dashes.
+      ctx.strokeStyle = "rgba(178,102,255,0.95)";
+      ctx.lineWidth = 7;
+      ctx.setLineDash([22, 14]);
+      ctx.beginPath();
+      ctx.roundRect(28, 48, w - 56, h - 96, 34);
+      ctx.stroke();
       ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(120,110,140,0.8)";
+      ctx.lineWidth = 6;
       for (let i = 0; i < 4; i++) {
         const x = 70 + i * 100;
         ctx.beginPath();
