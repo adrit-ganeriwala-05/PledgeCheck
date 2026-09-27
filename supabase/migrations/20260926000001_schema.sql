@@ -17,10 +17,16 @@ create table public.clinicians (
   display_name text not null
 );
 
+-- contact_email and auth_user_id are the only patient identifiers in this schema; the
+-- pseudonym stays the label shown on every clinic screen. contact_email exists because
+-- staff email the one-time test link, which may happen before the patient ever signs up.
+-- The password is never here: Supabase Auth holds it, bcrypt-hashed, in auth.users.
 create table public.patients (
   id                   uuid primary key default gen_random_uuid(),
   practice_id          uuid not null references public.practices (id),
   pseudonym            text not null,
+  contact_email        text,
+  auth_user_id         uuid unique references auth.users (id),
   can_get_pregnant     boolean not null,
   home_testing_allowed boolean not null default false,
   phase                text not null check (phase in ('pre', 'during', 'after', 'complete')),
@@ -80,6 +86,29 @@ create table public.windows (
 
 -- Append-only; see policies.sql for the trigger that blocks UPDATE and DELETE.
 -- Hashing is done by the audit module (Nihalika), not in the database.
+-- Patient-initiated request to start a refill cycle. Owner: Labib.
+--
+-- This table holds only what is new: who asked, when, and what staff decided. It stores no
+-- copy of the test outcome. Once test_request_id is set, the existing pipeline
+-- (test_requests -> submissions -> reviews -> windows) is the single source of truth for
+-- what happened, and the portal derives the patient-facing status by reading it. A second
+-- status column here would be a second truth, and they would drift.
+--
+-- The decision is always a clinician's: a patient can create a row and nothing else.
+create table public.refill_requests (
+  id              uuid primary key default gen_random_uuid(),
+  patient_id      uuid not null references public.patients (id),
+  created_at      timestamptz not null default now(),
+  status          text not null default 'requested'
+                    check (status in ('requested', 'linked', 'declined')),
+  test_request_id uuid references public.test_requests (id),
+  decided_by      uuid references public.clinicians (id),
+  decided_at      timestamptz,
+  decline_reason  text
+);
+
+create index refill_requests_patient_idx on public.refill_requests (patient_id, created_at desc);
+
 create table public.audit_events (
   seq        bigserial primary key,
   actor      text not null,
