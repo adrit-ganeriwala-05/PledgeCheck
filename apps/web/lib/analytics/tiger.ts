@@ -59,10 +59,12 @@ function getPool(): Pool | null {
  * reason a dermatologist's approval fails, so a failure is logged, not thrown.
  */
 export async function recordAccessEvent(input: AccessEventInput): Promise<boolean> {
-  const db = getPool();
-  if (!db) return false;
-
+  // getPool() is inside the try because `new Pool` throws on a malformed connection
+  // string, and that would break the promise made just above this function.
   try {
+    const db = getPool();
+    if (!db) return false;
+
     await db.query(
       `INSERT INTO access_events (time, practice_id, event, days_to_fill)
        VALUES ($1, $2, $3, $4)`,
