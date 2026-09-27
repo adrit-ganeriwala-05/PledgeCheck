@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { PortalSignOutButton } from "../sign-out-button";
+
 export const metadata: Metadata = { title: "Almost there · PledgeCheck" };
 
 // A signed-in user with no patients row. Not an error: it is what every new signup looks
@@ -16,6 +18,7 @@ export default function NotLinkedPage() {
       <p className="text-sm text-muted-foreground">
         Nothing about your care is shown here until they do.
       </p>
+      <PortalSignOutButton />
     </main>
   );
 }

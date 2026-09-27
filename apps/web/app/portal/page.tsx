@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { loadExams, loadRefills, type ExamRow, type RefillRow } from "./load";
 import { RequestRefill } from "./request-refill";
+import { PortalSignOutButton } from "./sign-out-button";
 
 export const metadata: Metadata = { title: "My care · PledgeCheck" };
 export const dynamic = "force-dynamic";
@@ -52,12 +53,15 @@ export default async function PortalPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-8 px-6 py-10">
-      <header className="space-y-1">
-        <p className="text-sm font-semibold tracking-widest uppercase">PledgeCheck</p>
-        <h1 className="text-2xl font-semibold tracking-tight">My care</h1>
-        <p className="text-sm text-muted-foreground">
-          Signed in as {auth.patient.pseudonym}. Your clinic decides every step below.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold tracking-widest uppercase">PledgeCheck</p>
+          <h1 className="text-2xl font-semibold tracking-tight">My care</h1>
+          <p className="text-sm text-muted-foreground">
+            Signed in as {auth.patient.pseudonym}. Your clinic decides every step below.
+          </p>
+        </div>
+        <PortalSignOutButton />
       </header>
 
       {loadFailed && (
