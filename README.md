@@ -2,7 +2,7 @@
 
 **At-home iPLEDGE pregnancy tests a dermatology practice can actually trust.**
 
-Since August 2026 the FDA lets isotretinoin patients take their pregnancy test at home —
+From November 2026 the FDA will let isotretinoin patients take their pregnancy test at home —
 but only if the prescriber sets up a process to stop misread and faked tests. The rule does
 not say what that process is. PledgeCheck is one.
 
@@ -165,7 +165,7 @@ tuning on real test photos, which do not exist yet.
 no database. AI output is one of its inputs, never its decision, and it never auto-approves —
 the best it can return is `ready_for_review`.
 
-Encoded from the February 2026 iPLEDGE changes, effective August 2026: the first
+Encoded from the February 2026 iPLEDGE changes, which take effect in November 2026: the first
 pre-treatment test must be in a medical setting; home tests only where the prescriber
 permits; a 7-day pickup window; a missed first-Rx window means a repeat test in a medical
 setting with no waiting period; patients who cannot get pregnant skip the loop entirely.

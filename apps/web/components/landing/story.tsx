@@ -95,7 +95,7 @@ function Hero({ progress }: { progress: MotionValue<number> }) {
             Take your iPLEDGE test at home.
           </m.h1>
           <m.p variants={ITEM} className="mt-5 max-w-lg text-lg leading-relaxed text-mist/85 sm:text-xl">
-            Since August 2026, the FDA allows at-home pregnancy tests for isotretinoin, as long as prescribers
+            From November 2026, the FDA will allow at-home pregnancy tests for isotretinoin, as long as prescribers
             prevent misreading and falsification. PledgeCheck is how practices do it.
           </m.p>
           <m.div variants={ITEM}>
@@ -173,7 +173,7 @@ function StaticStory() {
             Take your iPLEDGE test at home.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-relaxed text-mist/85 sm:text-xl">
-            Since August 2026, the FDA allows at-home pregnancy tests for isotretinoin, as long as prescribers
+            From November 2026, the FDA will allow at-home pregnancy tests for isotretinoin, as long as prescribers
             prevent misreading and falsification. PledgeCheck is how practices do it.
           </p>
           <HeroActions />
