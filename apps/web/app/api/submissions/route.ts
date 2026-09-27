@@ -182,7 +182,10 @@ export async function POST(request: Request) {
   const submission: Submission = {
     id: submissionId,
     setting: session.setting,
-    isFirstRx: patient.phase === "pre" || !patient.lastWindow,
+    // Past 'pre' means the first prescription already happened, even when it predates
+    // PledgeCheck and so left no window here. Counting "no window yet" as a first Rx
+    // blocked every home test from a mid-course patient new to the system.
+    isFirstRx: patient.phase === "pre",
     capturedAt,
     challengeCode: session.expectedCode,
     // A failed fraud check blocks; an unavailable reader or reuse check only flags.

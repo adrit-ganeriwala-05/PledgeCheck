@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { homeRefusal } from "@/lib/fraud/home-guards";
 import { mockSupabase, type QueryCall, type Result } from "@/test/supabase-mock";
 
 const mocks = vi.hoisted(() => ({
@@ -84,7 +85,7 @@ describe("POST /api/portal/enroll", () => {
     expect(await res.json()).toEqual({ error: "already_enrolled" });
   });
 
-  it("creates the record with defaults that leave the patient inert", async () => {
+  it("creates the record with home testing on and able to take effect", async () => {
     const admin = setup();
     const res = await POST(req({ practiceId: PRACTICE }));
     expect(res.status).toBe(201);
@@ -92,10 +93,12 @@ describe("POST /api/portal/enroll", () => {
     const insert = admin.queries.patients.flat().find((c) => c.method === "insert");
     const row = insert?.args[0] as Record<string, unknown>;
 
-    // A self-enrolled patient still cannot cause a test to be accepted: phase 'pre' is
-    // what holds them, and homeRefusal() checks it before the permission flag.
+    // The flag alone does nothing while phase is 'pre': homeRefusal() and the rules engine
+    // both refuse a pre-treatment home test. A started course is what lets it work.
     expect(row.home_testing_allowed).toBe(true);
-    expect(row.phase).toBe("pre");
+    expect(row.phase).toBe("during");
+    expect(row.treatment_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(homeRefusal(row as Parameters<typeof homeRefusal>[0])).toBeNull();
     expect(row.can_get_pregnant).toBe(true);
 
     expect(row.practice_id).toBe(PRACTICE);
@@ -104,11 +107,11 @@ describe("POST /api/portal/enroll", () => {
 
   it("takes the login from the session, never from the body", async () => {
     const admin = setup();
-    await POST(req({ practiceId: PRACTICE, auth_user_id: "someone-else", home_testing_allowed: true }));
+    await POST(req({ practiceId: PRACTICE, auth_user_id: "someone-else", phase: "complete" }));
     const insert = admin.queries.patients.flat().find((c) => c.method === "insert");
     const row = insert?.args[0] as Record<string, unknown>;
     expect(row.auth_user_id).toBe(USER);
-    expect(row.phase).toBe("pre");
+    expect(row.phase).toBe("during");
   });
 
   it("puts no real name in the schema, only a generated pseudonym", async () => {

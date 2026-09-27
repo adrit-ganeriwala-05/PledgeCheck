@@ -7,18 +7,20 @@
 // works: everywhere else a clinician acts first. It is safe here only because of what the
 // new row contains, and those values are the point, not incidental defaults:
 //
-//   home_testing_allowed = true    the prescriber's permission, pre-granted
-//   phase                = 'pre'   iPLEDGE rule 1 keeps a pre-treatment test in a medical
-//                                  setting. This is what actually holds a new patient:
-//                                  homeRefusal() checks phase before it checks the
-//                                  permission flag, and the rules engine blocks again at
-//                                  submission time via treatmentHasStarted()
-//   can_get_pregnant     = true    the conservative direction: testing requirements apply.
-//                                  false would remove them from the testing loop entirely,
-//                                  which is the dangerous value to guess wrong
+//   home_testing_allowed = true     home testing is on by default for portal patients
+//   phase                = 'during' portal patients are mid-course: their first,
+//   treatment_start      = today    pre-treatment test (iPLEDGE rule 1) happened in the
+//                                   clinic before they joined. Left at 'pre', homeRefusal()
+//                                   would refuse the emailed home link and the rules engine
+//                                   would block the home test, so the flag above would
+//                                   never take effect
+//   can_get_pregnant     = true     the conservative direction: testing requirements apply.
+//                                   false would remove them from the testing loop entirely,
+//                                   which is the dangerous value to guess wrong
 //
-// So a self-enrolled patient can sign in, see an empty record and ask for a refill. They
-// cannot cause a test to be accepted. Every step after this is still a clinician's.
+// So a self-enrolled patient can sign in, ask for a refill and, once staff approve it, test
+// at home. They still cannot cause a test to be accepted: staff approve the request, a
+// prescriber approves the result, and a clinician can turn home testing off per patient.
 //
 // 400 invalid_request · 401 · 409 already_enrolled · 404 unknown_practice · 500 enroll_failed
 
@@ -84,7 +86,8 @@ export async function POST(request: Request) {
       pseudonym: generatePseudonym(),
       can_get_pregnant: true,
       home_testing_allowed: true,
-      phase: "pre",
+      phase: "during",
+      treatment_start: new Date().toISOString().slice(0, 10),
       auth_user_id: auth.user.id,
       contact_email: auth.user.email ?? null,
     })

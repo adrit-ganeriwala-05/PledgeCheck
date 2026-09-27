@@ -46,7 +46,13 @@ const ACTIVE = {
   setting: "home",
 };
 
-function admin(opts: { insertError?: { code?: string; message?: string } } = {}) {
+function admin(
+  opts: {
+    insertError?: { code?: string; message?: string };
+    patient?: Record<string, unknown>;
+    noWindow?: boolean;
+  } = {},
+) {
   const mock = mockSupabase({
     tables: {
       patients: {
@@ -58,18 +64,21 @@ function admin(opts: { insertError?: { code?: string; message?: string } } = {})
           phase: "during",
           treatment_start: "2026-06-01",
           language: "en",
+          ...opts.patient,
         },
         error: null,
       },
       // An earlier, filled window: this is a monthly test, not the first pre-treatment one.
       windows: {
-        data: {
-          is_first_rx: true,
-          opens_at: "2026-08-20T15:00:00.000Z",
-          closes_at: "2026-08-27T15:00:00.000Z",
-          filled_at: "2026-08-21T15:00:00.000Z",
-          status: "filled",
-        },
+        data: opts.noWindow
+          ? null
+          : {
+              is_first_rx: true,
+              opens_at: "2026-08-20T15:00:00.000Z",
+              closes_at: "2026-08-27T15:00:00.000Z",
+              filled_at: "2026-08-21T15:00:00.000Z",
+              status: "filled",
+            },
         error: null,
       },
       submissions: (calls: QueryCall[]) =>
@@ -200,6 +209,23 @@ describe("POST /api/submissions — accepted photo", () => {
     mocks.readTestPhoto.mockResolvedValue({ result: "negative", confidence: 0.95, code_read: " k7 q2 " });
     expect(await (await upload()).json()).toMatchObject({ received: true });
     expect(mocks.recordFraudRejection).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/submissions — first prescription (rule 1)", () => {
+  it("a mid-course patient with no window here yet can test at home", async () => {
+    // A portal patient who just enrolled, or a seeded patient whose history predates us.
+    admin({ noWindow: true });
+    const body = await (await upload()).json();
+    expect(["ready_for_review", "needs_review"]).toContain(body.status);
+    expect(JSON.stringify(body.reasons)).not.toContain("medical setting");
+  });
+
+  it("a pre-treatment patient is still refused a home test", async () => {
+    admin({ noWindow: true, patient: { phase: "pre", treatment_start: null } });
+    const body = await (await upload()).json();
+    expect(body.status).toBe("rejected");
+    expect(JSON.stringify(body.reasons)).toContain("medical setting");
   });
 });
 
