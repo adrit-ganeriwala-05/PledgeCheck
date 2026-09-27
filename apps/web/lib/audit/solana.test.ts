@@ -208,6 +208,18 @@ describe("fetchMemo", () => {
     expect((await solana.fetchMemo(SIG))?.memoText).toBeNull();
   });
 
+  it("honours a shorter timeout for verification reads", async () => {
+    vi.useFakeTimers();
+    try {
+      net.getParsedTransaction.mockReturnValue(new Promise(() => {}));
+      const pending = solana.fetchMemo(SIG, { timeoutMs: 10_000 }).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await pending).toBeInstanceOf(SolanaRpcError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("returns null for an unknown signature and throws SolanaRpcError when the RPC fails", async () => {
     net.getParsedTransaction.mockResolvedValueOnce(null);
     await expect(solana.fetchMemo(SIG)).resolves.toBeNull();

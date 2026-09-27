@@ -188,7 +188,10 @@ export type FetchedMemo = {
 const MEMO_LOG_RE = /^Program log: Memo \(len \d+\): "(.*)"$/;
 
 // Reads a transaction back from the RPC. Returns null when the RPC does not know it.
-export async function fetchMemo(signature: string): Promise<FetchedMemo | null> {
+export async function fetchMemo(
+  signature: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<FetchedMemo | null> {
   const url = rpcUrl();
   let tx: Awaited<ReturnType<Connection["getParsedTransaction"]>>;
   try {
@@ -197,7 +200,7 @@ export async function fetchMemo(signature: string): Promise<FetchedMemo | null> 
         maxSupportedTransactionVersion: 0,
         commitment: "confirmed",
       }),
-      CONFIRM_TIMEOUT_MS,
+      opts.timeoutMs ?? CONFIRM_TIMEOUT_MS,
     );
   } catch (err) {
     throw toSolanaError(err);
