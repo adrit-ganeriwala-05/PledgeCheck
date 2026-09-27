@@ -50,13 +50,13 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
   en: {
     title: "Home pregnancy test",
     codeLabel: "Write this code on the test",
-    start: "Start",
+    start: "Start test",
     openCamera: "Open camera",
     takePhoto: "Take photo",
     retake: "Retake",
-    send: "Send to my clinic",
+    send: "Submit test",
     sending: "Sending…",
-    sentTitle: "Received",
+    sentTitle: "Sent to your clinic",
     cameraBlocked:
       "This page needs your camera. Allow camera access in your browser, then reload. Photos cannot be uploaded from your gallery.",
     linkProblem: "This link cannot be used",
@@ -70,13 +70,13 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
   es: {
     title: "Prueba de embarazo en casa",
     codeLabel: "Escriba este código en la prueba",
-    start: "Comenzar",
+    start: "Comenzar prueba",
     openCamera: "Abrir cámara",
     takePhoto: "Tomar foto",
     retake: "Repetir",
-    send: "Enviar a mi clínica",
+    send: "Enviar prueba",
     sending: "Enviando…",
-    sentTitle: "Recibido",
+    sentTitle: "Enviada a su clínica",
     cameraBlocked:
       "Esta página necesita su cámara. Permita el acceso a la cámara en su navegador y recargue. No se pueden subir fotos desde la galería.",
     linkProblem: "Este enlace no se puede usar",
@@ -89,8 +89,20 @@ export const UI_TEXT: Record<Language, Record<string, string>> = {
   },
 };
 
-/** Why a link cannot be used, by link state (lib/fraud/session.ts). */
-export type LinkProblemState = "invalid" | "link_expired" | "session_expired" | "submitted" | "error";
+/**
+ * Why a link cannot be used: the link states in lib/fraud/session.ts, plus the v3 start
+ * answers (410 invalidated / expired / already_used, and a challenge code that ran out).
+ */
+export type LinkProblemState =
+  | "invalid"
+  | "link_expired"
+  | "session_expired"
+  | "submitted"
+  | "error"
+  | "invalidated"
+  | "expired"
+  | "already_used"
+  | "code_expired";
 
 export const LINK_PROBLEM_TEXT: Record<Language, Record<LinkProblemState, string>> = {
   en: {
@@ -99,6 +111,10 @@ export const LINK_PROBLEM_TEXT: Record<Language, Record<LinkProblemState, string
     session_expired: "Your test session has ended. Ask your clinic for a new link.",
     submitted: "A photo was already sent with this link. Your clinic will be in touch.",
     error: "Something went wrong. Reload the page or contact your clinic.",
+    invalidated: "This link was replaced by a newer one. Use the latest email from your clinic, or start from your portal.",
+    expired: "This link has expired. Go to your portal to get a new one.",
+    already_used: "This link was already used. Your portal shows where things stand.",
+    code_expired: "Your code has expired because no photo arrived in time. Go to your portal to get a new link.",
   },
   es: {
     invalid: "Este enlace no es válido. Pida uno nuevo a su clínica.",
@@ -106,5 +122,9 @@ export const LINK_PROBLEM_TEXT: Record<Language, Record<LinkProblemState, string
     session_expired: "Su sesión de prueba terminó. Pida un enlace nuevo a su clínica.",
     submitted: "Ya se envió una foto con este enlace. Su clínica se comunicará con usted.",
     error: "Algo salió mal. Recargue la página o contacte a su clínica.",
+    invalidated: "Este enlace fue reemplazado por uno más nuevo. Use el correo más reciente de su clínica o comience desde su portal.",
+    expired: "Este enlace ha caducado. Vaya a su portal para obtener uno nuevo.",
+    already_used: "Este enlace ya se usó. Su portal muestra en qué punto está.",
+    code_expired: "Su código caducó porque no llegó ninguna foto a tiempo. Vaya a su portal para obtener un enlace nuevo.",
   },
 };

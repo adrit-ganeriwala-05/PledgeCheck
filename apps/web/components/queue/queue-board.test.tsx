@@ -102,7 +102,7 @@ describe("QueueBoard review flow", () => {
     render(<QueueBoard />);
     fireEvent.click(await screen.findByRole("button", { name: "Approve test for PT-1042" }));
     const confirmation = await screen.findByRole("status");
-    expect(confirmation).toHaveTextContent(/^Approved · window closes /);
+    expect(confirmation).toHaveTextContent(/^Test approved · window closes /);
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COLLAPSE_MS + 10);
@@ -120,7 +120,7 @@ describe("QueueBoard review flow", () => {
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Reason for rejecting (required)"), { target: { value: "Line unclear" } });
     fireEvent.click(confirm);
-    expect(await screen.findByRole("status")).toHaveTextContent("Rejected");
+    expect(await screen.findByRole("status")).toHaveTextContent("Test rejected");
     expect(JSON.parse(fetchMock.mock.calls.find(([u]) => u === "/api/reviews")![1].body)).toEqual({
       submissionId: makeCard().submissionId,
       decision: "rejected",
@@ -154,7 +154,7 @@ describe("QueueBoard review flow", () => {
 });
 
 describe("QueueBoard refresh", () => {
-  it("refetches every 20 seconds and on window focus", async () => {
+  it("refetches on the polling interval and on window focus", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     queueReplies = [cards(makeCard())];
     render(<QueueBoard />);
@@ -180,6 +180,48 @@ describe("QueueBoard refresh", () => {
     });
     expect(screen.getByText("PT-1042")).toBeInTheDocument();
     expect(screen.getByText(/Couldn.t refresh just now/)).toBeInTheDocument();
+  });
+});
+
+describe("QueueBoard live updates", () => {
+  it("announces and highlights a test that arrives after the first load", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const second = makeCard({ submissionId: "13000000-0000-0000-0000-000000000002", patient: { pseudonym: "PT-2001", phase: "during", language: "es" } });
+    queueReplies = [cards(makeCard()), cards(makeCard(), second)];
+    render(<QueueBoard />);
+    await screen.findByText("PT-1042");
+    expect(screen.getByRole("group", { name: /PT-1042/ })).not.toHaveAttribute("data-new");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS);
+    });
+    expect(await screen.findByText("1 new test waiting for review")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /PT-2001/ })).toHaveAttribute("data-new", "true");
+  });
+
+  it("does not poll while the tab is hidden", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    queueReplies = [cards(makeCard())];
+    render(<QueueBoard />);
+    await screen.findByText("PT-1042");
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_INTERVAL_MS * 3);
+    });
+    expect(queueCalls()).toBe(1);
+    hidden.mockRestore();
+  });
+
+  it("J and K move focus between cards", async () => {
+    const second = makeCard({ submissionId: "13000000-0000-0000-0000-000000000002", patient: { pseudonym: "PT-2001", phase: "during", language: "en" } });
+    queueReplies = [cards(makeCard(), second)];
+    render(<QueueBoard />);
+    await screen.findByText("PT-2001");
+    fireEvent.keyDown(document.body, { key: "j" });
+    expect(screen.getByRole("group", { name: /PT-1042/ })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "j" });
+    expect(screen.getByRole("group", { name: /PT-2001/ })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "k" });
+    expect(screen.getByRole("group", { name: /PT-1042/ })).toHaveFocus();
   });
 });
 

@@ -3,6 +3,7 @@
 // Fed only by the Tiger Data continuous aggregate. No patient, no submission,
 // no result tied to a person, and any week with fewer than 5 events is hidden.
 
+import { Wordmark } from "@/components/brand/wordmark";
 import { SMALL_COUNT_FLOOR, weeklyAccess, type WeeklyRow } from "@/lib/analytics/tiger";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,8 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
       <header className="mb-8">
-        <p className="text-sm font-semibold tracking-widest text-[var(--pc-brand)] uppercase">
-          PledgeCheck
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold">Therapy access, weekly</h1>
+        <Wordmark size="sm" />
+        <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Therapy access, weekly</h1>
         <p className="mt-1 max-w-2xl text-[var(--pc-muted)]">
           De-identified totals from the Tiger Data <code>weekly_access</code> continuous
           aggregate. No patient-level data reaches this page, and any week with fewer
@@ -38,12 +37,12 @@ export default async function DashboardPage() {
       </section>
 
       {weeks.length === 0 ? (
-        <p className="rounded-xl border border-[var(--pc-line)] bg-white p-8 text-center text-[var(--pc-muted)]">
+        <p className="rounded-2xl border border-[var(--pc-line)] bg-surface p-8 text-center text-[var(--pc-muted)]">
           No weeks above the reporting floor yet. Approve a few tests and the aggregate
           fills in.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--pc-line)] bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-[var(--pc-line)] bg-surface">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-[var(--pc-line)] text-[var(--pc-muted)]">
               <tr>
@@ -82,9 +81,9 @@ export default async function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-xl border border-[var(--pc-line)] bg-white p-5">
+    <div className="rounded-2xl border border-[var(--pc-line)] bg-surface p-5">
       <p className="text-sm text-[var(--pc-muted)]">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-1 font-display text-4xl font-semibold tabular-nums">{value}</p>
     </div>
   );
 }

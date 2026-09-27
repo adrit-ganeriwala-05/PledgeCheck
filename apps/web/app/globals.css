@@ -2,13 +2,37 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* The whole product is dark. The root <html> carries .dark so shadcn's dark: variants apply. */
 @custom-variant dark (&:is(.dark *));
+
+/* The entry pages' two layouts. Same query as WIDE_QUERY in components/entry/poses.ts, so the DOM and
+   the 3D camera always agree: card on the right with the model left, or the model above the card. */
+@custom-variant wide (@media (min-width: 900px) and (min-aspect-ratio: 7/5));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-bricolage), var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand palette (pink, purple, black). */
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-mist: var(--mist);
+  --color-haze: var(--haze);
+  --color-orchid: var(--orchid);
+  --color-orchid-text: var(--orchid-text);
+  --color-rose: var(--rose);
+  --color-rose-text: var(--rose-text);
+
+  /* Status colors: separate from brand, always paired with a text label. */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-stop: var(--stop);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -45,75 +69,78 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Type scale. */
+  --text-hero: clamp(2.75rem, 7vw, 6rem);
+  --text-hero--line-height: 0.98;
+  --text-code: 4rem;
+  --text-code--line-height: 1;
+
+  --ease-weighted: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* Contrast (WCAG): mist 17.9:1 and haze 7.9:1 on ink; orchid 6.2:1, rose 6.9:1; black on rose 6.9:1.
+   White on rose is only 3.0:1, so text on rose is always black. */
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --ink: #000000;
+  --surface: #120a1c;
+  --raised: #1d1229;
+  --line: #2e2140;
+  --mist: #f3e9ff;
+  --haze: #a898bd;
+  --orchid: #b266ff;
+  --orchid-text: #c99bff;
+  --rose: #ff4fa8;
+  --rose-text: #ff7dbe;
+  --ok: #4ade9a;
+  --warn: #ffb547;
+  --stop: #ff5a3c;
+  --brand-gradient: linear-gradient(115deg, var(--rose) 0%, #d95bd6 48%, var(--orchid) 100%);
+
+  --background: var(--ink);
+  --foreground: var(--mist);
+  --card: var(--surface);
+  --card-foreground: var(--mist);
+  --popover: var(--raised);
+  --popover-foreground: var(--mist);
+  --primary: var(--rose);
+  --primary-foreground: #000000;
+  --secondary: var(--raised);
+  --secondary-foreground: var(--mist);
+  --muted: var(--raised);
+  --muted-foreground: var(--haze);
+  --accent: #2a1a3d;
+  --accent-foreground: var(--mist);
+  --destructive: var(--stop);
+  --border: var(--line);
+  --input: #3a2a50;
+  --ring: var(--orchid);
+  --chart-1: var(--rose);
+  --chart-2: var(--orchid);
+  --chart-3: #7c5cff;
+  --chart-4: var(--haze);
+  --chart-5: #5a4a70;
+  --radius: 0.75rem;
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--mist);
+  --sidebar-primary: var(--rose);
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: var(--raised);
+  --sidebar-accent-foreground: var(--mist);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--orchid);
+
+  /* Legacy names used by the patient flow and the drug-maker dashboard. */
+  --pc-ink: var(--mist);
+  --pc-muted: var(--haze);
+  --pc-line: var(--line);
+  --pc-brand: var(--rose);
+  --pc-brand-dark: #e03d8f;
+  --pc-warn: var(--warn);
+  --pc-stop: var(--stop);
+
+  color-scheme: dark;
 }
 
 @layer base {
@@ -128,22 +155,79 @@
   }
   html {
     @apply font-sans;
+    background: var(--ink);
+  }
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    outline: 2px solid var(--orchid);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--orchid) 45%, transparent);
+    color: var(--mist);
+  }
+  a {
+    text-underline-offset: 3px;
   }
 }
-/* PledgeCheck patient and analytics screens. Owner: Labib (L1, L5, L8).
-   Prefixed --pc-* so they never collide with the shadcn tokens above: shadcn's
-   --color-muted is a near-white surface, while --pc-muted is muted body text. */
-:root {
-  --pc-ink: #0f172a;
-  --pc-muted: #64748b;
-  --pc-line: #e2e8f0;
-  --pc-brand: #0d7d6e;
-  --pc-brand-dark: #0a6155;
-  --pc-warn: #b45309;
-  --pc-stop: #b91c1c;
+
+@layer utilities {
+  /* The one primary action per screen, and the success moment. */
+  .bg-brand-gradient {
+    background-image: var(--brand-gradient);
+  }
+  .text-brand-gradient {
+    background-image: var(--brand-gradient);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Autofill keeps the dark field: no yellow or white fill, the text stays mist. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--mist);
+  caret-color: var(--mist);
+  box-shadow: 0 0 0 1000px var(--ink) inset;
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+input:autofill {
+  background-color: var(--ink);
+}
+
+/* First paint of a sign-in page: the card rises in without waiting for JavaScript. Later arrivals are
+   animated by Motion (components/entry/entry-shell.tsx). */
+@keyframes entry-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+.entry-rise {
+  animation: entry-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
 }
 
 /* The capture page is used one-handed, outdoors, on a phone. */
 .tap-target {
   min-height: 3.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

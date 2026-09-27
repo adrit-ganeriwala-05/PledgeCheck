@@ -32,13 +32,17 @@ describe("loadPatients", () => {
       tables: {
         patients: {
           data: [
-            { id: "p1", pseudonym: "PT-A1", phase: "during", language: "es", can_get_pregnant: true, home_testing_allowed: true },
-            { id: "p2", pseudonym: "PT-A2", phase: "pre", language: "en", can_get_pregnant: false, home_testing_allowed: false },
+            { id: "p1", pseudonym: "PT-A1", phase: "during", language: "es", can_get_pregnant: true, home_testing_allowed: true, auth_user_id: "u1" },
+            { id: "p2", pseudonym: "PT-A2", phase: "pre", language: "en", can_get_pregnant: false, home_testing_allowed: false, auth_user_id: null },
           ],
           error: null,
         },
         test_requests: { data: [{ id: "r1", patient_id: "p1", setting: "home", expires_at: at(600), used_at: null }], error: null },
         submissions: { data: [], error: null },
+        refill_requests: {
+          data: [{ patient_id: "p1", created_at: at(-60), status: "requested", test_request_id: null, test_requests: null }],
+          error: null,
+        },
       },
     });
     const rows = await loadPatients(client as never, NOW);
@@ -51,6 +55,8 @@ describe("loadPatients", () => {
         canGetPregnant: true,
         homeTestingAllowed: true,
         latest: { state: "ready", setting: "home", expiresAt: at(600) },
+        enrolled: true,
+        cycleStatus: "requested",
       },
       {
         id: "p2",
@@ -60,6 +66,8 @@ describe("loadPatients", () => {
         canGetPregnant: false,
         homeTestingAllowed: false,
         latest: null,
+        enrolled: false,
+        cycleStatus: null,
       },
     ]);
     // Only the pseudonym leaves the table: no name, DOB or other identifiers are selected.

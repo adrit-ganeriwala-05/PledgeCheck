@@ -161,6 +161,8 @@ describe("PatientsTable", () => {
     canGetPregnant: true,
     homeTestingAllowed: true,
     latest: { state: "active", setting: "home", expiresAt: EXPIRES },
+    enrolled: true,
+    cycleStatus: null,
   };
 
   it("shows the empty state", () => {

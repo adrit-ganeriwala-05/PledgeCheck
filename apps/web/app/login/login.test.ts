@@ -32,7 +32,7 @@ describe("role routing", () => {
   it("destinationFor maps each result", () => {
     const clinician = (role: "prescriber" | "staff") => ({ ok: true as const, clinician: { id: USER, practiceId: PRACTICE, role } });
     expect(destinationFor(clinician("prescriber"))).toBe("/queue");
-    expect(destinationFor(clinician("staff"))).toBe("/patients");
+    expect(destinationFor(clinician("staff"))).toBe("/requests");
     expect(destinationFor({ ok: false, status: 403, error: "not_a_clinician" })).toBe(NO_ACCESS_PATH);
     expect(destinationFor({ ok: false, status: 401, error: "unauthenticated" })).toBe("/login");
   });
@@ -42,9 +42,9 @@ describe("role routing", () => {
     expect(await landing()).toBe("/queue");
   });
 
-  it("staff lands on /patients", async () => {
+  it("staff lands on /requests", async () => {
     signedIn("staff");
-    expect(await landing()).toBe("/patients");
+    expect(await landing()).toBe("/requests");
   });
 
   it("a user with no clinicians row lands on the no-access screen", async () => {

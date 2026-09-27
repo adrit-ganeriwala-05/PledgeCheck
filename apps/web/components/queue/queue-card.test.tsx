@@ -19,7 +19,7 @@ describe("QueueCard: needs_review treatment", () => {
 
     expect(screen.getByText("Needs closer review")).toBeInTheDocument();
     const article = container.querySelector('[data-status="needs_review"]');
-    expect(article?.className).toMatch(/border-amber/);
+    expect(article?.className).toMatch(/border-warn/);
     const reasons = screen.getByText("Needs closer review").parentElement!.querySelector("ul")!;
     expect(within(reasons).getByText("Readers disagree: Grok negative · OpenCV positive")).toBeInTheDocument();
     expect(within(reasons).getByText("Low OpenCV confidence (50%)")).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("QueueCard: needs_review treatment", () => {
     const { container } = render(<QueueCard card={makeCard()} onResolved={vi.fn()} />);
     expect(screen.queryByText("Needs closer review")).not.toBeInTheDocument();
     expect(screen.getByText("Ready for review")).toBeInTheDocument();
-    expect(container.querySelector('[data-status="ready_for_review"]')?.className ?? "").not.toMatch(/amber/);
+    expect(container.querySelector('[data-status="ready_for_review"]')?.className ?? "").not.toMatch(/border-warn/);
   });
 });
 
@@ -42,6 +42,97 @@ describe("QueueCard: flags", () => {
     const unknown = within(list).getByText("mystery_flag_v2");
     expect(unknown).toHaveAttribute("title", "Unrecognized flag, shown as received");
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+  });
+});
+
+describe("QueueCard: flag labels and severity", () => {
+  it("labels every flag the submissions pipeline emits instead of showing it raw", () => {
+    const emitted = [
+      "already_used",
+      "code_missing_or_wrong",
+      "photo_already_used",
+      "reuse_check_unavailable",
+      "window_logic_unavailable",
+      "grok_unavailable",
+      "opencv_unavailable",
+    ];
+    render(<QueueCard card={makeCard({ flags: emitted })} onResolved={vi.fn()} />);
+    const list = screen.getByRole("list", { name: "Flags" });
+    for (const label of [
+      "Link already used",
+      "Code missing or wrong",
+      "Photo already used",
+      "Photo-reuse check didn't run",
+      "Window logic unavailable",
+      "Grok read unavailable",
+      "OpenCV read unavailable",
+    ]) {
+      expect(within(list).getByText(label)).toBeInTheDocument();
+    }
+    for (const raw of emitted) expect(within(list).queryByText(raw)).not.toBeInTheDocument();
+  });
+
+  it("orders fraud flags first and marks their severity", () => {
+    render(<QueueCard card={makeCard({ flags: ["low_confidence", "photo_already_used"] })} onResolved={vi.fn()} />);
+    const items = within(screen.getByRole("list", { name: "Flags" })).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Fraud check: Photo already used");
+    expect(items[1]).toHaveTextContent("Review: Low confidence");
+  });
+});
+
+describe("QueueCard: rules-engine reasons stored with the flags", () => {
+  it("hides the passing checks on a clean card instead of showing them as unknown flags", () => {
+    render(
+      <QueueCard
+        card={makeCard({ flags: ["readers agree: negative", "both readers above the confidence threshold", "code matches"] })}
+        onResolved={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("list", { name: "Flags" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unrecognized/)).not.toBeInTheDocument();
+  });
+
+  it("labels review reasons and lists new ones without repeating the reads", () => {
+    const card = makeCard({
+      status: "needs_review",
+      grok: { result: "positive", code: "K7Q2", confidence: 0.62, codeMatches: true },
+      opencv: { result: "positive", confidence: 0.9 },
+      flags: ["grok confidence 0.62 is below 0.85", "positive result; prescriber must contact the patient before any fill"],
+    });
+    render(<QueueCard card={card} onResolved={vi.fn()} />);
+    const list = screen.getByRole("list", { name: "Flags" });
+    expect(within(list).getByText("Positive result; prescriber must contact the patient before any fill")).toBeInTheDocument();
+    expect(within(list).getByText("Grok confidence 0.62 is below 0.85")).toBeInTheDocument();
+    expect(closerReviewReasons(card)).toEqual([
+      "Low Grok confidence (62%)",
+      "Positive result; prescriber must contact the patient before any fill",
+    ]);
+  });
+});
+
+describe("QueueCard: degraded checks never look like a clean pass", () => {
+  it("says only one reader ran when OpenCV is unavailable", () => {
+    render(
+      <QueueCard
+        card={makeCard({ opencv: { result: null, confidence: null }, readersAgree: false, flags: ["opencv_unavailable"] })}
+        onResolved={vi.fn()}
+      />,
+    );
+    const note = screen.getByRole("note", { name: "Checks that did not run" });
+    expect(note).toHaveTextContent("Only one reader ran. OpenCV did not read this photo.");
+    expect(screen.queryByText(/^Readers agree/)).not.toBeInTheDocument();
+  });
+
+  it("says photo-reuse checking didn't run", () => {
+    render(<QueueCard card={makeCard({ flags: ["reuse_check_unavailable"] })} onResolved={vi.fn()} />);
+    expect(screen.getByRole("note", { name: "Checks that did not run" })).toHaveTextContent(
+      "Photo-reuse check didn't run. This photo was not compared with earlier submissions.",
+    );
+  });
+
+  it("a clean card has no degraded note", () => {
+    render(<QueueCard card={makeCard()} onResolved={vi.fn()} />);
+    expect(screen.queryByRole("note", { name: "Checks that did not run" })).not.toBeInTheDocument();
   });
 });
 

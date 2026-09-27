@@ -2,7 +2,12 @@
 
 // Live countdown list. Owner: Labib (ticket L5).
 
+import { CheckCircle2Icon, ClockIcon, OctagonAlertIcon } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
+
+import { Button } from "@/components/ui/button";
+import { markPickedUp } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 
 export interface WindowRow {
   id: string;
@@ -14,6 +19,16 @@ export interface WindowRow {
   filledAt: string | null;
   status: "open" | "filled" | "missed";
 }
+
+const HOUR = 60 * 60 * 1000;
+
+export const PICKUP_ERRORS: Record<string, string> = {
+  not_open: "This window is no longer open, so pickup can't be recorded. The patient needs a repeat test.",
+  not_found: "This window no longer exists. Reload the page.",
+  unauthenticated: "Your session has expired. Sign in again.",
+  not_a_clinician: "This account can't record pickups.",
+  network_error: "Network error. Check your connection and try again.",
+};
 
 export function WindowList({ rows }: { rows: WindowRow[] }) {
   const [now, setNow] = useState(() => Date.now());
@@ -27,101 +42,106 @@ export function WindowList({ rows }: { rows: WindowRow[] }) {
     return () => clearInterval(id);
   }, []);
 
-  const markFilled = (id: string) => {
+  const markPickedUpNow = (id: string) => {
     startTransition(async () => {
-      try {
-        const response = await fetch("/api/windows/fill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ windowId: id }),
-        });
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { reason?: string };
-          setFailed((f) => ({ ...f, [id]: data.reason ?? "could not mark filled" }));
-          return;
-        }
+      const result = await markPickedUp(id);
+      if (result.ok) {
         setFilled((f) => ({ ...f, [id]: true }));
-      } catch {
-        setFailed((f) => ({ ...f, [id]: "network error" }));
+        setFailed((f) => {
+          const next = { ...f };
+          delete next[id];
+          return next;
+        });
+        return;
       }
+      setFailed((f) => ({ ...f, [id]: PICKUP_ERRORS[result.error.code] ?? "Couldn't mark it picked up. Try again." }));
     });
   };
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-[var(--pc-line)] bg-white p-8 text-center text-[var(--pc-muted)]">
-        No open windows. Approved tests open one automatically.
-      </p>
+      <div className="rounded-2xl border border-dashed border-line px-6 py-14 text-center">
+        <p className="font-display text-xl font-semibold text-mist">No open windows</p>
+        <p className="mt-2 text-sm text-haze">Approving a test opens a 7-day pickup window automatically.</p>
+      </div>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-3" aria-label="Pickup windows">
       {rows.map((row) => {
         const remaining = new Date(row.closesAt).getTime() - now;
+        // Recorded by the backend (status = missed), or derived here until the daily sweep exists.
         const missed = row.status === "missed" || remaining <= 0;
-        const urgent = !missed && remaining < 24 * 60 * 60 * 1000;
+        const urgent = !missed && remaining < 24 * HOUR;
+        const soon = !missed && !urgent && remaining < 72 * HOUR;
         const isFilled = filled[row.id];
 
         return (
           <li
             key={row.id}
-            className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-5 ${
-              isFilled
-                ? "border-[var(--pc-line)] opacity-60"
-                : missed
-                  ? "border-red-300"
-                  : urgent
-                    ? "border-amber-300"
-                    : "border-[var(--pc-line)]"
-            }`}
+            data-status={isFilled ? "picked_up" : missed ? "missed" : "open"}
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-surface p-4 transition-opacity sm:p-5",
+              isFilled ? "border-ok/30 opacity-70" : missed ? "border-stop/50" : urgent ? "border-stop/40" : soon ? "border-warn/45" : "border-line",
+            )}
           >
-            <div>
-              <p className="font-medium">
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-2 text-lg font-semibold text-mist">
                 {row.pseudonym}
                 {row.isFirstRx && (
-                  <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-[var(--pc-muted)]">
+                  <span className="rounded-full border border-orchid/40 px-2 py-0.5 text-xs font-medium text-orchid-text">
                     first prescription
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-sm text-[var(--pc-muted)]">
-                Closes {new Date(row.closesAt).toLocaleString()}
-              </p>
+              <p className="mt-1 text-sm text-haze">Closes {new Date(row.closesAt).toLocaleString()}</p>
               {failed[row.id] && (
-                <p className="mt-1 text-sm text-[var(--pc-stop)]">{failed[row.id]}</p>
+                <p role="alert" className="mt-1 text-sm text-stop">
+                  {failed[row.id]}
+                </p>
               )}
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <p
-                className={`font-mono text-lg tabular-nums ${
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-base font-semibold tabular",
                   isFilled
-                    ? "text-[var(--pc-muted)]"
-                    : missed
-                      ? "text-[var(--pc-stop)]"
-                      : urgent
-                        ? "text-[var(--pc-warn)]"
-                        : ""
-                }`}
+                    ? "border-ok/30 text-ok"
+                    : missed || urgent
+                      ? "border-stop/50 bg-stop/10 text-stop"
+                      : soon
+                        ? "border-warn/45 bg-warn/10 text-warn"
+                        : "border-line text-mist",
+                )}
               >
-                {isFilled ? "filled" : missed ? "window missed" : countdown(remaining)}
+                {isFilled ? (
+                  <CheckCircle2Icon className="size-4" aria-hidden />
+                ) : missed ? (
+                  <OctagonAlertIcon className="size-4" aria-hidden />
+                ) : (
+                  <ClockIcon className="size-4" aria-hidden />
+                )}
+                {isFilled ? "Picked up" : missed ? "Missed" : countdown(remaining)}
               </p>
 
               {!isFilled && !missed && (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="lg"
                   disabled={pending}
-                  onClick={() => markFilled(row.id)}
-                  className="rounded-lg border border-[var(--pc-line)] px-4 py-2 font-medium hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => markPickedUpNow(row.id)}
+                  aria-label={`Mark picked up for ${row.pseudonym}`}
                 >
-                  Mark filled
-                </button>
+                  Mark picked up
+                </Button>
               )}
 
               {missed && !isFilled && (
-                <span className="text-sm text-[var(--pc-stop)]">
-                  repeat test in clinic
+                <span className="text-sm text-stop">
+                  {row.isFirstRx ? "Repeat test in clinic" : "Closed without pickup: contact the patient"}
                 </span>
               )}
             </div>

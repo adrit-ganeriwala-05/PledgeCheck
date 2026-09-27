@@ -1,20 +1,27 @@
 "use client";
 
 import { CheckCircle2Icon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
+import { AnimatePresence, domMax, LazyMotion, m } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/clinic/format";
-import type { QueueCard as QueueCardData, QueueResponse } from "@/lib/clinic/queue";
+import { getQueue } from "@/lib/api/client";
+import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
 
 import { QueueCard } from "./queue-card";
 import type { ReviewOutcome } from "./review-actions";
+import { sortByUrgency } from "./sort";
 
-export const REFRESH_INTERVAL_MS = 20_000;
+// Polled, not pushed: Supabase Realtime would need the submissions table added to the realtime
+// publication (a migration). A short interval with the in-flight guard keeps the split-screen demo
+// live; polling pauses while the tab is hidden and resumes (with an immediate fetch) when it returns.
+export const REFRESH_INTERVAL_MS = 3_000;
+/** How long a newly arrived card keeps its highlight. */
+export const NEW_HIGHLIGHT_MS = 8_000;
 export const COLLAPSE_MS = 2_500;
 // Signed photo URLs last 5 minutes and change on every fetch. Reuse a card's URL for up
 // to 4 minutes so refreshes don't reload the photo (or an open zoom dialog) every 20s.
@@ -59,8 +66,8 @@ export function resolutionFor(outcome: ReviewOutcome): Resolution | null {
       kind: "done",
       text:
         outcome.status === "approved"
-          ? `Approved${outcome.window ? ` · window closes ${formatDateTime(outcome.window.closesAt)}` : ""}`
-          : "Rejected",
+          ? `Test approved${outcome.window ? ` · window closes ${formatDateTime(outcome.window.closesAt)}` : ""}`
+          : "Test rejected",
     };
   }
   if (outcome.reviewRecorded) {
@@ -74,46 +81,88 @@ export function QueueBoard() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [resolved, setResolved] = useState<Record<string, Resolution>>({});
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [fresh, setFresh] = useState<Set<string>>(() => new Set());
+  const [announcement, setAnnouncement] = useState("");
   const inFlight = useRef(false);
   const photoUrls = useRef<PhotoUrlCache>(new Map());
+  // Ids seen so far; null until the first successful load, so the initial list is not "new".
+  const seen = useRef<Set<string> | null>(null);
 
   const load = useCallback(async (mode: "initial" | "background") => {
     if (inFlight.current) return;
     inFlight.current = true;
     try {
-      const res = await fetch("/api/queue", { cache: "no-store" });
-      if (!res.ok) {
+      const result = await getQueue();
+      if (!result.ok) {
+        const { code, status } = result.error;
         setState((s) =>
-          mode === "background" && s.kind === "ready" && res.status >= 500
+          mode === "background" && s.kind === "ready" && (code === "network_error" || status >= 500)
             ? { ...s, refreshFailed: true }
-            : { kind: "error", status: res.status },
+            : { kind: "error", status },
         );
         return;
       }
-      const body = (await res.json()) as QueueResponse;
+      const body = result.data;
+      const arrived = seen.current ? body.cards.filter((c) => !seen.current!.has(c.submissionId)).map((c) => c.submissionId) : [];
+      seen.current = new Set([...(seen.current ?? []), ...body.cards.map((c) => c.submissionId)]);
+      if (arrived.length > 0) {
+        setFresh((f) => new Set([...f, ...arrived]));
+        setAnnouncement(arrived.length === 1 ? "1 new test waiting for review" : `${arrived.length} new tests waiting for review`);
+        setTimeout(() => {
+          setFresh((f) => {
+            const next = new Set(f);
+            for (const id of arrived) next.delete(id);
+            return next;
+          });
+        }, NEW_HIGHLIGHT_MS);
+      }
       setState({
         kind: "ready",
         cards: stabilizePhotoUrls(body.cards, photoUrls.current, Date.now()),
         refreshFailed: false,
       });
-    } catch {
-      setState((s) => (mode === "background" && s.kind === "ready" ? { ...s, refreshFailed: true } : { kind: "error", status: 0 }));
     } finally {
       inFlight.current = false;
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
     void load("initial");
     const refresh = () => void load("background");
-    const timer = setInterval(refresh, REFRESH_INTERVAL_MS);
+    const timer = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, REFRESH_INTERVAL_MS);
+    const onVisible = () => {
+      if (!document.hidden) refresh();
+    };
     window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
+
+  // J / K move between cards, anywhere on the page except while typing.
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== "j" && key !== "k") return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-queue-card][tabindex]"));
+      if (cards.length === 0) return;
+      e.preventDefault();
+      const current = cards.findIndex((c) => c === document.activeElement || c.contains(document.activeElement));
+      const next = current === -1 ? 0 : Math.min(cards.length - 1, Math.max(0, current + (key === "j" ? 1 : -1)));
+      cards[next].focus();
+      cards[next].scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   function dismiss(id: string) {
     setDismissed((d) => new Set(d).add(id));
@@ -131,19 +180,18 @@ export function QueueBoard() {
       <div aria-busy="true" aria-live="polite" className="space-y-6">
         <span className="sr-only">Loading tests waiting for review</span>
         {[0, 1, 2].map((i) => (
-          <Card key={i} data-testid="queue-skeleton">
-            <CardHeader>
-              <Skeleton className="h-5 w-40" />
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="aspect-[4/3] w-full" />
+          <div key={i} data-testid="queue-skeleton" className="space-y-4 rounded-2xl border border-line bg-surface p-5">
+            <Skeleton className="h-6 w-40" />
+            <div className="grid gap-4 md:grid-cols-[5fr_7fr]">
+              <Skeleton className="aspect-4/3 w-full" />
               <div className="space-y-3">
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-7 w-2/3" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            <Skeleton className="h-11 w-full" />
+          </div>
         ))}
       </div>
     );
@@ -190,46 +238,100 @@ export function QueueBoard() {
 
   // Keep resolved cards visible (collapsed) until dismissed, even if a refetch drops them.
   const visible = [
-    ...state.cards,
+    ...sortByUrgency(state.cards),
     ...Object.keys(resolved)
       .filter((id) => !state.cards.some((c) => c.submissionId === id))
       .map((id) => ({ submissionId: id }) as QueueCardData),
   ].filter((c) => !dismissed.has(c.submissionId));
+  const waiting = visible.filter((c) => !resolved[c.submissionId]).length;
 
   return (
-    <div className="space-y-4">
-      {state.refreshFailed ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          Couldn&apos;t refresh just now; showing the last loaded list.
+    <LazyMotion features={domMax} strict>
+      <div className="space-y-4">
+        <p className="sr-only" aria-live="polite">
+          {announcement}
         </p>
-      ) : null}
-      {visible.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">No tests waiting for review</p>
-      ) : (
-        <ol className="space-y-6" aria-label="Tests waiting for review">
-          {visible.map((card) => {
-            const resolution = resolved[card.submissionId];
-            return (
-              <li key={card.submissionId}>
-                {resolution ? (
-                  <ResolvedCard resolution={resolution} onDismiss={() => dismiss(card.submissionId)} />
-                ) : (
-                  <QueueCard card={card} onResolved={(outcome) => handleResolved(card.submissionId, outcome)} />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-mist">
+            <span className="tabular font-semibold">{waiting}</span>{" "}
+            <span className="text-haze">{waiting === 1 ? "test waiting" : "tests waiting"}</span>
+          </p>
+          <div className="flex items-center gap-4 text-haze">
+            <span className="hidden items-center gap-1.5 md:inline-flex">
+              <Key>J</Key>
+              <Key>K</Key> move between cards
+            </span>
+            {state.refreshFailed ? (
+              <span role="status" className="text-warn">
+                Couldn&apos;t refresh just now; showing the last loaded list.
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="relative flex size-2" aria-hidden>
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok/60 motion-reduce:hidden" />
+                  <span className="relative inline-flex size-2 rounded-full bg-ok" />
+                </span>
+                Live
+              </span>
+            )}
+          </div>
+        </div>
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-line px-6 py-14 text-center">
+            <p className="font-display text-xl font-semibold text-mist">No tests waiting for review</p>
+            <p className="mt-2 text-sm text-haze">
+              Approve a refill in <Link className="text-orchid-text underline" href="/requests">Requests</Link> or issue a
+              link from <Link className="text-orchid-text underline" href="/patients">Patients</Link>. When the patient
+              sends their photo, the test appears here within seconds.
+            </p>
+          </div>
+        ) : (
+          <ol className="space-y-5" aria-label="Tests waiting for review">
+            <AnimatePresence initial={false}>
+              {visible.map((card) => {
+                const resolution = resolved[card.submissionId];
+                return (
+                  <m.li
+                    key={card.submissionId}
+                    layout="position"
+                    initial={{ opacity: 0, y: -16, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 48, transition: { duration: 0.28, ease: [0.4, 0, 1, 1] } }}
+                    transition={{ type: "spring", stiffness: 260, damping: 32, mass: 1 }}
+                  >
+                    {resolution ? (
+                      <ResolvedCard resolution={resolution} onDismiss={() => dismiss(card.submissionId)} />
+                    ) : (
+                      <QueueCard
+                        card={card}
+                        isNew={fresh.has(card.submissionId)}
+                        onResolved={(outcome) => handleResolved(card.submissionId, outcome)}
+                      />
+                    )}
+                  </m.li>
+                );
+              })}
+            </AnimatePresence>
+          </ol>
+        )}
+      </div>
+    </LazyMotion>
+  );
+}
+
+function Key({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-grid size-5 place-items-center rounded border border-line text-[0.7rem] font-semibold text-haze">
+      {children}
+    </kbd>
   );
 }
 
 function ResolvedCard({ resolution, onDismiss }: { resolution: Resolution; onDismiss: () => void }) {
   if (resolution.kind === "done") {
     return (
-      <div role="status" className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-3 text-sm font-medium">
-        <CheckCircle2Icon className="size-4" aria-hidden />
+      <div role="status" className="flex items-center gap-2 rounded-2xl border border-ok/30 bg-ok/5 px-4 py-3 text-sm font-medium text-mist">
+        <CheckCircle2Icon className="size-4 text-ok" aria-hidden />
         {resolution.text}
       </div>
     );

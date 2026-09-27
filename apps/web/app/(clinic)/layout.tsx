@@ -1,10 +1,14 @@
 import { ClinicNav } from "@/components/clinic/clinic-nav";
+import { Toaster } from "@/components/ui/sonner";
+import { clinicRole } from "@/lib/clinic/role";
 
-export default function ClinicLayout({ children }: LayoutProps<"/">) {
+export default async function ClinicLayout({ children }: LayoutProps<"/">) {
+  const role = await clinicRole();
   return (
     <>
-      <ClinicNav />
+      <ClinicNav role={role} />
       {children}
+      <Toaster position="bottom-right" />
     </>
   );
 }

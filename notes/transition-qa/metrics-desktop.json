@@ -1,0 +1,274 @@
+{
+  "project": "motion-desktop",
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+  "rendering": "GPU (headless Chromium, ANGLE)",
+  "cpuThrottle": 1,
+  "sequence": {
+    "webglContexts": 1,
+    "pageLoadCls": 0,
+    "transitions": [
+      {
+        "transition": "home → patient sign in",
+        "frames": 94,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "sign in → create account (tab)",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0025,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 707→734 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 734→763 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 763→785 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 785→807 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 807→822 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 822→834 h 53→53"
+        ]
+      },
+      {
+        "transition": "create account → sign in (tab)",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0024,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 867→840 h 33→53",
+          "p \"Are you a clinician? Clinician\" y 840→812 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 812→786 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 786→767 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 767→751 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 751→740 h 53→53"
+        ]
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0019,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 707→684 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 684→662 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 662→643 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 643→628 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 628→616 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 616→606 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → patient",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0019,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 581→605 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 605→628 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 628→646 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 646→661 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 661→673 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 673→682 h 53→53"
+        ]
+      },
+      {
+        "transition": "patient → home (Home link)",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home → clinician sign in",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "clinician → home (browser back)",
+        "frames": 90,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home → clinician (browser forward)",
+        "frames": 90,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "clinician → home (Home link)",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home mid-scroll → patient sign in (nav)",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": []
+  },
+  "interruptions": {
+    "rapidHistoryMs": 1701,
+    "webglContexts": 1,
+    "console": []
+  },
+  "contextLoss": {
+    "webglContexts": 1,
+    "console": [],
+    "reloaded": false
+  },
+  "reduced-motion": {
+    "webglContexts": 0,
+    "transitions": [
+      {
+        "transition": "home → patient",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0031,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 707→581 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → home",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": []
+  },
+  "no-webgl": {
+    "webglContexts": 0,
+    "transitions": [
+      {
+        "transition": "home → patient",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0018,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 707→687 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 687→663 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 663→645 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 645→629 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 629→617 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 617→607 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → home",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": [
+      "error: THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.",
+      "error: Error: THREE.WebGLRenderer: Error creating WebGL context.\n    at new uI (http://localhost:3200/_next/static/chunks/0p1y8b6eivzpe.js:529:24177)\n    at d (http://localhost:3200/_next/static/chunks/0p1y8b6eivzpe.js:540:21700)\n    at Object.configure (http://localhost:3200/_next/static/chunks/0p1y8b6eiv"
+    ]
+  },
+  "filmstrips": [
+    "filmstrips/desktop-01-home-to-patient.png",
+    "filmstrips/desktop-02-signin-to-create-account.png",
+    "filmstrips/desktop-03-create-account-to-signin.png",
+    "filmstrips/desktop-04-patient-to-clinician.png",
+    "filmstrips/desktop-05-clinician-to-patient.png",
+    "filmstrips/desktop-06-patient-to-home.png",
+    "filmstrips/desktop-07-home-to-clinician.png",
+    "filmstrips/desktop-08-back-to-home.png",
+    "filmstrips/desktop-09-mid-scroll-to-patient.png",
+    "filmstrips/desktop-10-deep-link-first-paint.png"
+  ]
+}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { verifyAudit } from "@/lib/api/client";
 
 import { AnchorNowButton } from "./anchor-button";
 import { AnchorsList } from "./anchors-list";
@@ -44,21 +45,20 @@ export function AuditScreen({
 
   async function runVerify() {
     setVerify({ kind: "pending" });
-    try {
-      const res = await fetch("/api/audit/verify", { cache: "no-store" });
-      if (!res.ok) {
-        setVerify({ kind: "error", message: verifyErrorMessage(res.status) });
-        return;
-      }
-      const result = (await res.json()) as VerifyResponse;
-      setVerify({ kind: "done", result });
-      const seq = brokenSeqOf(result);
-      setHighlight(seq);
-      if (seq !== null && !chain.rows.some((r) => r.seq === seq)) {
-        router.push(`/audit?seq=${seq}`, { scroll: false });
-      }
-    } catch {
-      setVerify({ kind: "error", message: NETWORK_ERROR });
+    const response = await verifyAudit();
+    if (!response.ok) {
+      setVerify({
+        kind: "error",
+        message: response.error.code === "network_error" ? NETWORK_ERROR : verifyErrorMessage(response.error.status),
+      });
+      return;
+    }
+    const result = response.data;
+    setVerify({ kind: "done", result });
+    const seq = brokenSeqOf(result);
+    setHighlight(seq);
+    if (seq !== null && !chain.rows.some((r) => r.seq === seq)) {
+      router.push(`/audit?seq=${seq}`, { scroll: false });
     }
   }
 
@@ -71,18 +71,18 @@ export function AuditScreen({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start gap-3">
-        <Button type="button" onClick={runVerify} disabled={verify.kind === "pending"} aria-busy={verify.kind === "pending"}>
+        <Button type="button" size="lg" onClick={runVerify} disabled={verify.kind === "pending"} aria-busy={verify.kind === "pending"}>
           {verify.kind === "pending" ? "Verifying…" : "Verify"}
         </Button>
         <AnchorNowButton onAnchored={anchored} />
         {/* A7: audit PDF export button (Adrit) */}
-        <p className="ml-auto self-center text-sm text-muted-foreground">{unanchoredText(unanchoredCount)}</p>
+        <p className="ml-auto self-center text-sm text-haze">{unanchoredText(unanchoredCount)}</p>
       </div>
 
       <div aria-live="polite">
         {verify.kind === "done" && <VerifyPanel result={verify.result} />}
         {verify.kind === "error" && (
-          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/50 p-4 text-sm text-destructive">
+          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl border border-stop/50 bg-stop/5 p-4 text-sm text-mist">
             <span>{verify.message}</span>
             <Button type="button" size="sm" variant="outline" onClick={runVerify}>
               Try again
@@ -92,14 +92,14 @@ export function AuditScreen({
       </div>
 
       <section aria-labelledby="chain-heading" className="space-y-2">
-        <h2 id="chain-heading" className="text-lg font-semibold">
+        <h2 id="chain-heading" className="text-xl font-semibold">
           Audit log
         </h2>
         <ChainTable chain={chain} anchoredSeqs={anchoredSeqs} highlightSeq={highlight} />
       </section>
 
       <section aria-labelledby="anchors-heading" className="space-y-2">
-        <h2 id="anchors-heading" className="text-lg font-semibold">
+        <h2 id="anchors-heading" className="text-xl font-semibold">
           Solana anchors
         </h2>
         <AnchorsList anchors={anchors} />

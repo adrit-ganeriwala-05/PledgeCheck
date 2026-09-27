@@ -1,13 +1,14 @@
 "use client";
 
-import { TriangleAlertIcon } from "lucide-react";
+import { CircleDashedIcon, SirenIcon, TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { describeAgreement } from "@/lib/clinic/format";
 import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
 import { cn } from "@/lib/utils";
 
 import { FlagBadges } from "./flag-badges";
+import { clinicalAlert, degradedNotes, flagLabel, flagSeverity } from "./flags";
 import { PhotoViewer } from "./photo-viewer";
 import { ReadersPanel } from "./readers-panel";
 import { ReviewActions, type ReviewActionsHandle, type ReviewOutcome } from "./review-actions";
@@ -27,10 +28,12 @@ type Props = {
   card: QueueCardData;
   // Called when the decision was saved (fully, or with a failed follow-up step).
   onResolved: (outcome: ReviewOutcome) => void;
+  /** Arrived after the queue first loaded; highlighted briefly. */
+  isNew?: boolean;
 };
 
 // One card holds the whole decision: photo, both reads, flags, window and the actions.
-export function QueueCard({ card, onResolved }: Props) {
+export function QueueCard({ card, onResolved, isNew = false }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   function handleDone(outcome: ReviewOutcome) {
@@ -61,75 +64,124 @@ export function QueueCard({ card, onResolved }: Props) {
   }
 
   const needsReview = card.status === "needs_review";
-  const reasons = needsReview ? closerReviewReasons(card) : [];
+  const clinical = clinicalAlert(card);
+  const degraded = degradedNotes(card);
+  // The degraded banner already says which reader or check did not run; don't repeat it here.
+  const readerMissing = card.grok.result === null || card.opencv.result === null;
+  const degradedLabels = new Set(
+    card.flags.filter((f) => flagSeverity(f) === "degraded").map((f) => `Flag: ${flagLabel(f).label}`),
+  );
+  const missingReaderLine = readerMissing ? describeAgreement(card) : null;
+  const reasons = (needsReview ? closerReviewReasons(card) : []).filter(
+    (r) => !degradedLabels.has(r) && r !== missingReaderLine,
+  );
 
   return (
-    <Card
+    <div
       role="group"
       aria-labelledby={`card-title-${card.submissionId}`}
       data-status={card.status}
+      data-queue-card
+      data-new={isNew || undefined}
       tabIndex={card.canReview ? 0 : undefined}
       onKeyDown={handleKeyDown}
       aria-keyshortcuts={card.canReview ? "A R" : undefined}
       className={cn(
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        needsReview && "border-2 border-amber-500 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/30",
+        "rounded-2xl border bg-surface p-4 text-mist transition-[box-shadow,border-color] duration-500 outline-none sm:p-5",
+        "focus-visible:border-orchid focus-visible:shadow-[0_0_0_3px_color-mix(in_oklch,var(--orchid)_45%,transparent)]",
+        clinical ? "border-stop/70" : needsReview ? "border-warn/50" : "border-line",
+        isNew && "shadow-[0_0_0_1px_var(--orchid),0_0_40px_-8px_color-mix(in_oklch,var(--orchid)_60%,transparent)]",
       )}
     >
-      <CardHeader>
-        {needsReview ? (
-          <div className="mb-2 rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-amber-950 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-100">
-            <p className="flex items-center gap-1.5 font-semibold">
-              <TriangleAlertIcon className="size-4" aria-hidden />
-              Needs closer review
-            </p>
-            {reasons.length > 0 ? (
-              <ul className="mt-1 list-disc pl-5 text-sm">
-                {reasons.map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            {needsReview || clinical ? null : (
+              <p className="inline-flex items-center gap-1.5 text-sm font-medium text-haze">
+                <span className="size-1.5 rounded-full bg-haze" aria-hidden />
+                Ready for review
+              </p>
+            )}
+            {isNew ? (
+              <span className="rounded-full bg-orchid/15 px-2 py-0.5 text-xs font-semibold text-orchid-text">New</span>
             ) : null}
           </div>
-        ) : (
-          <p className="mb-1 text-sm font-medium text-muted-foreground">Ready for review</p>
-        )}
-        <CardTitle id={`card-title-${card.submissionId}`} className="flex flex-wrap items-center gap-2">
-          <span>{card.patient.pseudonym}</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            phase {card.patient.phase} · {card.patient.language.toUpperCase()}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <PhotoViewer url={card.photoUrl} pseudonym={card.patient.pseudonym} />
-        <div className="space-y-4">
-          <ReadersPanel card={card} />
-          <FlagBadges flags={card.flags} />
-          <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
-          {card.canReview ? (
-            <>
-              <ReviewActions
-                ref={actions}
-                submissionId={card.submissionId}
-                pseudonym={card.patient.pseudonym}
-                onDone={handleDone}
-              />
-              <p className="text-xs text-muted-foreground">
-                Shortcuts when this card is focused: <kbd className="font-mono">A</kbd> approve ·{" "}
-                <kbd className="font-mono">R</kbd> reject
+          <h2 id={`card-title-${card.submissionId}`} className="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold">
+            <span>{card.patient.pseudonym}</span>
+            <span className="font-sans text-sm font-normal tracking-normal text-haze">
+              phase {card.patient.phase} · {card.patient.language.toUpperCase()}
+            </span>
+          </h2>
+        </div>
+        <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
+      </header>
+
+      {clinical ? (
+        <p
+          role="alert"
+          data-clinical
+          className="mt-3 flex items-start gap-2 rounded-xl border border-stop bg-stop/15 px-3 py-2.5 text-sm font-semibold text-mist"
+        >
+          <SirenIcon className="mt-0.5 size-4 shrink-0 text-stop" aria-hidden />
+          <span>{clinical}</span>
+        </p>
+      ) : null}
+
+      {needsReview || degraded.length > 0 ? (
+        <div className="mt-3 space-y-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2.5 text-mist">
+          {needsReview ? (
+            <div>
+              <p className="flex items-center gap-1.5 font-semibold text-warn">
+                <TriangleAlertIcon className="size-4" aria-hidden />
+                Needs closer review
               </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Read-only: only prescribers can approve or reject.</p>
-          )}
-          {error ? (
-            <p role="alert" className="text-sm font-medium text-destructive">
-              {error}
-            </p>
+              {reasons.length > 0 ? (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm marker:text-warn">
+                  {reasons.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {degraded.length > 0 ? (
+            <div role="note" aria-label="Checks that did not run" className="space-y-1">
+              {degraded.map((note) => (
+                <p key={note} className="flex items-start gap-1.5 text-sm font-medium text-warn">
+                  <CircleDashedIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{note}</span>
+                </p>
+              ))}
+            </div>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <PhotoViewer url={card.photoUrl} pseudonym={card.patient.pseudonym} />
+        <div className="space-y-3">
+          <ReadersPanel card={card} />
+          <FlagBadges flags={card.flags} />
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-line pt-4">
+        {card.canReview ? (
+          <ReviewActions
+            ref={actions}
+            submissionId={card.submissionId}
+            pseudonym={card.patient.pseudonym}
+            onDone={handleDone}
+          />
+        ) : (
+          <p className="text-sm text-haze">Read-only: only prescribers can approve or reject.</p>
+        )}
+        {error ? (
+          <p role="alert" className="mt-2 text-sm font-medium text-stop">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }

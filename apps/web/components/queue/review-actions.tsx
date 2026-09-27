@@ -5,6 +5,7 @@ import { useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { submitReview as apiSubmitReview } from "@/lib/api/client";
 import { REASON_MAX_LENGTH } from "@/lib/clinic/review";
 
 export type ReviewOutcome =
@@ -24,18 +25,9 @@ type Props = {
 };
 
 export async function submitReview(submissionId: string, decision: "approved" | "rejected", reason?: string): Promise<ReviewOutcome> {
-  try {
-    const res = await fetch("/api/reviews", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ submissionId, decision, reason }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (res.ok) return { ok: true, status: body.status, window: body.window ?? null };
-    return { ok: false, error: body.error ?? `http_${res.status}`, reviewRecorded: body.reviewRecorded === true };
-  } catch {
-    return { ok: false, error: "network_error", reviewRecorded: false };
-  }
+  const result = await apiSubmitReview(submissionId, decision, reason);
+  if (result.ok) return { ok: true, status: result.data.status, window: result.data.window };
+  return { ok: false, error: result.error.code, reviewRecorded: result.reviewRecorded === true };
 }
 
 // Approve is one tap (no confirmation) so a clear case takes seconds; Reject asks for a reason.
@@ -66,46 +58,47 @@ export function ReviewActions({ submissionId, pseudonym, onDone, ref }: Props) {
 
   return (
     <div className="space-y-3" aria-busy={pending !== null}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={pending !== null}
-            onClick={() => decide("approved")}
-            aria-label={`Approve test for ${pseudonym}`}
-          >
-            {pending === "approved" ? (
-              <>
-                <Loader2Icon className="animate-spin" aria-hidden /> Approving…
-              </>
-            ) : (
-              "Approve"
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground">Approve opens the 7-day pickup window and deletes the photo.</p>
-        </div>
-        <div className="space-y-1">
-          <Button
-            className="w-full"
-            size="lg"
-            variant="outline"
-            disabled={pending !== null}
-            aria-expanded={rejecting}
-            aria-controls={reasonId}
-            onClick={() => setRejecting((v) => !v)}
-            aria-label={`Reject test for ${pseudonym}`}
-          >
-            Reject
-          </Button>
-          <p className="text-xs text-muted-foreground">Reject records your reason and deletes the photo; the clinic follows up.</p>
-        </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button
+          className="w-full justify-between"
+          size="lg"
+          disabled={pending !== null}
+          onClick={() => decide("approved")}
+          aria-label={`Approve test for ${pseudonym}`}
+        >
+          {pending === "approved" ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2Icon className="animate-spin" aria-hidden /> Approving…
+            </span>
+          ) : (
+            <>
+              <span>Approve test</span>
+              <Kbd tone="dark">A</Kbd>
+            </>
+          )}
+        </Button>
+        <Button
+          className="w-full justify-between"
+          size="lg"
+          variant="outline"
+          disabled={pending !== null}
+          aria-expanded={rejecting}
+          aria-controls={reasonId}
+          onClick={() => setRejecting((v) => !v)}
+          aria-label={`Reject test for ${pseudonym}`}
+        >
+          <span>Reject test</span>
+          <Kbd>R</Kbd>
+        </Button>
       </div>
+      <p className="text-xs text-haze">
+        Approving opens the 7-day fill window. Rejecting records your reason. Either way the photo is deleted.
+      </p>
 
       {rejecting ? (
         <form
           id={reasonId}
-          className="space-y-2"
+          className="space-y-2 rounded-lg border border-line bg-ink/40 p-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (reason.trim()) void decide("rejected");
@@ -136,5 +129,20 @@ export function ReviewActions({ submissionId, pseudonym, onDone, ref }: Props) {
         </form>
       ) : null}
     </div>
+  );
+}
+
+function Kbd({ children, tone = "light" }: { children: React.ReactNode; tone?: "light" | "dark" }) {
+  return (
+    <kbd
+      aria-hidden
+      className={
+        tone === "dark"
+          ? "hidden size-6 place-items-center rounded-md bg-black/15 text-xs font-semibold sm:inline-grid"
+          : "hidden size-6 place-items-center rounded-md border border-line text-xs font-semibold text-haze sm:inline-grid"
+      }
+    >
+      {children}
+    </kbd>
   );
 }

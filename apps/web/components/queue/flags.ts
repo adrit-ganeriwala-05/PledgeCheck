@@ -1,16 +1,121 @@
-// Known flag labels. The flag vocabulary is not final (set by the submissions pipeline and
-// fraud checks), so unknown flags are never dropped: they render as their raw value.
-export const FLAG_LABELS: Record<string, string> = {
-  readers_disagree: "Readers disagree",
-  low_confidence: "Low confidence",
-  code_mismatch: "Code mismatch",
-  code_missing: "Code missing",
-  photo_reused: "Photo already used",
-  grok_unavailable: "Grok read unavailable",
-  opencv_unavailable: "OpenCV read unavailable",
+// Flag labels and severities for the review queue. Flags are set by the submissions pipeline
+// (app/api/submissions/route.ts) and the fraud checks. Unknown flags are never dropped: they
+// render as their raw value with an "unknown" severity.
+//
+// Severity decides how a flag looks, never what the prescriber may do:
+//   clinical - a test line was seen, faint or clear: a possible positive (solid red, listed first)
+//   fraud    - a fraud check failed (red)
+//   degraded - a check or reader did not run, so the card is not a clean pass (amber)
+//   review   - worth a closer look (amber)
+export type FlagSeverity = "clinical" | "fraud" | "degraded" | "review";
+
+type FlagInfo = { label: string; severity: FlagSeverity };
+
+export const FLAGS: Record<string, FlagInfo> = {
+  // Clinical safety (PRD v3): any visible test line, however faint, counts as positive.
+  faint_test_line: { label: "Faint test line: possible positive", severity: "clinical" },
+  test_line_present: { label: "Test line visible: possible positive", severity: "clinical" },
+  control_line_missing: { label: "No control line: test invalid", severity: "review" },
+  code_unreadable: { label: "Code unreadable", severity: "review" },
+  // Reader outcomes.
+  readers_disagree: { label: "Readers disagree", severity: "review" },
+  low_confidence: { label: "Low confidence", severity: "review" },
+  grok_unavailable: { label: "Grok read unavailable", severity: "degraded" },
+  opencv_unavailable: { label: "OpenCV read unavailable", severity: "degraded" },
+  // Challenge code.
+  code_mismatch: { label: "Code mismatch", severity: "fraud" },
+  code_missing: { label: "Code missing", severity: "review" },
+  code_missing_or_wrong: { label: "Code missing or wrong", severity: "fraud" },
+  // Link and photo reuse.
+  already_used: { label: "Link already used", severity: "fraud" },
+  photo_reused: { label: "Photo already used", severity: "fraud" },
+  photo_already_used: { label: "Photo already used", severity: "fraud" },
+  reuse_check_unavailable: { label: "Photo-reuse check didn't run", severity: "degraded" },
+  // Rules engine.
+  window_logic_unavailable: { label: "Window logic unavailable", severity: "degraded" },
 };
+
+export const FLAG_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(FLAGS).map(([flag, info]) => [flag, info.label]),
+);
+
+// The submissions pipeline stores the rules engine's reasons (lib/rules/engine.ts) in the same
+// flags array. They are sentences, not codes: the passing ones repeat what the readers panel shows,
+// the rest become labeled flags.
+const ENGINE_PASSED = [/^readers agree\b/, /^both readers above the confidence threshold$/, /^code matches$/];
+const ENGINE_FRAUD = [/^code missing or wrong\b/, /^home testing not permitted\b/];
+const ENGINE_CLINICAL = [/^positive result\b/];
+
+function isEngineReason(flag: string): boolean {
+  return /\s/.test(flag);
+}
+
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A rules-engine reason that only confirms a check passed; not a flag. */
+export function isPassedCheck(flag: string): boolean {
+  return isEngineReason(flag) && ENGINE_PASSED.some((re) => re.test(flag));
+}
 
 export function flagLabel(flag: string): { label: string; known: boolean } {
   const label = FLAG_LABELS[flag];
-  return label ? { label, known: true } : { label: flag, known: false };
+  if (label) return { label, known: true };
+  if (isEngineReason(flag)) return { label: sentence(flag), known: true };
+  return { label: flag, known: false };
+}
+
+export function flagSeverity(flag: string): FlagSeverity | "unknown" {
+  const known = FLAGS[flag]?.severity;
+  if (known) return known;
+  if (isEngineReason(flag)) {
+    if (ENGINE_CLINICAL.some((re) => re.test(flag))) return "clinical";
+    return ENGINE_FRAUD.some((re) => re.test(flag)) ? "fraud" : "review";
+  }
+  return "unknown";
+}
+
+const SEVERITY_ORDER: Record<FlagSeverity | "unknown", number> = { clinical: 0, fraud: 1, degraded: 2, review: 3, unknown: 4 };
+
+/** The flags worth showing, most serious first; stable within a severity. Passed checks are left out. */
+export function sortFlags(flags: string[]): string[] {
+  return flags.filter((f) => !isPassedCheck(f)).sort((a, b) => SEVERITY_ORDER[flagSeverity(a)] - SEVERITY_ORDER[flagSeverity(b)]);
+}
+
+/**
+ * Plain statements of what did not run, for the banner at the top of a card. A degraded card
+ * must never look like a clean pass.
+ */
+export function degradedNotes(card: {
+  flags: string[];
+  grok: { result: string | null };
+  opencv: { result: string | null };
+}): string[] {
+  const notes: string[] = [];
+  const grokMissing = card.flags.includes("grok_unavailable") || card.grok.result === null;
+  const cvMissing = card.flags.includes("opencv_unavailable") || card.opencv.result === null;
+  if (grokMissing && cvMissing) notes.push("Neither reader ran. There is no independent read of this photo.");
+  else if (cvMissing) notes.push("Only one reader ran. OpenCV did not read this photo.");
+  else if (grokMissing) notes.push("Only one reader ran. Grok did not read this photo, so no code was read.");
+  if (card.flags.includes("reuse_check_unavailable")) {
+    notes.push("Photo-reuse check didn't run. This photo was not compared with earlier submissions.");
+  }
+  return notes;
+}
+
+/**
+ * The banner for a card where a test line was seen. A faint line is never shown as a clean or
+ * negative read, whatever the readers' overall result says.
+ */
+export function clinicalAlert(card: {
+  flags: string[];
+  grok: { testLine?: "none" | "faint" | "clear" | null };
+}): string | null {
+  const faint = card.grok.testLine === "faint" || card.flags.includes("faint_test_line");
+  if (faint) {
+    return "Faint test line detected. On most home tests any visible test line counts as positive: treat this as a possible positive.";
+  }
+  const line = card.grok.testLine === "clear" || card.flags.some((f) => flagSeverity(f) === "clinical");
+  return line ? "A test line was detected. Treat this as a possible positive and contact the patient before any fill." : null;
 }

@@ -1,5 +1,5 @@
 // GET /login/continue — after sign-in, send the user to their role's home:
-// prescriber → /queue, staff → /patients, no clinicians row → /login/no-access,
+// prescriber → /queue, staff → /requests (ROLE_HOME in lib/auth/permissions.ts), no clinicians row → /login/no-access,
 // no session → /login.
 import { NextResponse } from "next/server";
 

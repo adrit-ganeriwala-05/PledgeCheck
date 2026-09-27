@@ -1,0 +1,265 @@
+{
+  "project": "motion-mobile",
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+  "rendering": "GPU (headless Chromium, ANGLE)",
+  "cpuThrottle": 4,
+  "sequence": {
+    "webglContexts": 1,
+    "pageLoadCls": 0,
+    "transitions": [
+      {
+        "transition": "home → patient sign in",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 1,
+        "longTasksOver50ms": [
+          61
+        ],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "sign in → create account (tab)",
+        "frames": 94,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.006,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 759→779 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 779→814 h 53→30",
+          "p \"Are you a clinician? Clinician\" y 814→0 h 30→0"
+        ]
+      },
+      {
+        "transition": "create account → sign in (tab)",
+        "frames": 94,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0043,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 0→830 h 0→14",
+          "p \"Are you a clinician? Clinician\" y 830→813 h 14→31",
+          "p \"Are you a clinician? Clinician\" y 813→799 h 31→45",
+          "p \"Are you a clinician? Clinician\" y 799→788 h 45→53",
+          "p \"Are you a clinician? Clinician\" y 788→781 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 781→774 h 53→53"
+        ]
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0104,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 759→741 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 741→717 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 717→699 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 699→682 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 682→670 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 670→661 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → patient",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0102,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a clinician? Clinician\" y 634→652 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 652→675 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 675→695 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 695→711 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 711→723 h 53→53",
+          "p \"Are you a clinician? Clinician\" y 723→733 h 53→53"
+        ]
+      },
+      {
+        "transition": "patient → home (Home link)",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home → clinician sign in",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "clinician → home (browser back)",
+        "frames": 90,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home → clinician (browser forward)",
+        "frames": 91,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "clinician → home (Home link)",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "home mid-scroll → patient sign in (nav)",
+        "frames": 93,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": []
+  },
+  "interruptions": {
+    "rapidHistoryMs": 1712,
+    "webglContexts": 1,
+    "console": []
+  },
+  "contextLoss": {
+    "webglContexts": 1,
+    "console": [],
+    "reloaded": false
+  },
+  "reduced-motion": {
+    "webglContexts": 0,
+    "transitions": [
+      {
+        "transition": "home → patient",
+        "frames": 91,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 1,
+        "longTasksOver50ms": [
+          71
+        ],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.017,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 759→634 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → home",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": []
+  },
+  "no-webgl": {
+    "webglContexts": 0,
+    "transitions": [
+      {
+        "transition": "home → patient",
+        "frames": 90,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 2,
+        "longTasksOver50ms": [
+          101
+        ],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      },
+      {
+        "transition": "patient → clinician",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.7,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0.0104,
+        "clsExcludingInput": 0,
+        "shiftSources": [
+          "p \"Are you a patient? Patient sig\" y 759→742 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 742→719 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 719→699 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 699→683 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 683→670 h 53→53",
+          "p \"Are you a patient? Patient sig\" y 670→661 h 53→53"
+        ]
+      },
+      {
+        "transition": "clinician → home",
+        "frames": 92,
+        "medianMs": 16.7,
+        "p95Ms": 16.8,
+        "over33ms": 0,
+        "longTasksOver50ms": [],
+        "cls": 0,
+        "clsExcludingInput": 0,
+        "shiftSources": []
+      }
+    ],
+    "console": [
+      "error: THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.",
+      "error: Error: THREE.WebGLRenderer: Error creating WebGL context.\n    at new uI (http://localhost:3200/_next/static/chunks/0p1y8b6eivzpe.js:529:24177)\n    at d (http://localhost:3200/_next/static/chunks/0p1y8b6eivzpe.js:540:21700)\n    at Object.configure (http://localhost:3200/_next/static/chunks/0p1y8b6eiv"
+    ]
+  }
+}
