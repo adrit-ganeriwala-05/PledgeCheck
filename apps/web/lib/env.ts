@@ -25,6 +25,9 @@ const readers = {
   TIGER_DATABASE_URL: lazy("TIGER_DATABASE_URL", nonEmpty),
   SOLANA_RPC_URL: lazy("SOLANA_RPC_URL", z.url()),
   SOLANA_SECRET_KEY: lazy("SOLANA_SECRET_KEY", nonEmpty),
+  RESEND_API_KEY: lazy("RESEND_API_KEY", nonEmpty),
+  // e.g. "PledgeCheck <links@pledgecheck.tech>"; the domain must be verified in Resend.
+  EMAIL_FROM: lazy("EMAIL_FROM", nonEmpty),
 } as const;
 
 export type ServerEnvName = keyof typeof readers;

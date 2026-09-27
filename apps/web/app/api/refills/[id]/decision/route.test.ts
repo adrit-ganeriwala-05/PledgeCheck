@@ -7,14 +7,17 @@ const mocks = vi.hoisted(() => ({
   adminClient: null as unknown,
   appendAuditEvent: vi.fn(),
   issueTestLink: vi.fn(),
-  send: vi.fn(),
+  issueAndEmailTestLink: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => mocks.userClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.adminClient }));
 vi.mock("@/lib/audit/append", () => ({ appendAuditEvent: mocks.appendAuditEvent }));
-vi.mock("@/lib/clinic/issue-link", () => ({ issueTestLink: mocks.issueTestLink }));
-vi.mock("@/lib/integrations/email", () => ({ send: mocks.send, isConfigured: () => false }));
+vi.mock("@/lib/requests/issue", () => ({
+  issueTestLink: mocks.issueTestLink,
+  linkOrigin: () => "http://localhost",
+}));
+vi.mock("@/lib/requests/email-link", () => ({ issueAndEmailTestLink: mocks.issueAndEmailTestLink }));
 
 const { POST } = await import("./route");
 
@@ -82,13 +85,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
   mocks.appendAuditEvent.mockResolvedValue({ seq: 1, hash: "x" });
-  mocks.issueTestLink.mockResolvedValue({
-    ok: true,
+  const issued = {
+    ok: true as const,
     requestId: REQUEST_ID,
-    token: "TOKEN123",
+    link: "http://localhost/t/TOKEN123",
     expiresAt: "2026-09-28T00:00:00.000Z",
-  });
-  mocks.send.mockResolvedValue({ ok: true, id: "email_1" });
+    patient: { id: PATIENT, language: "en" as const },
+  };
+  mocks.issueTestLink.mockResolvedValue(issued);
+  mocks.issueAndEmailTestLink.mockResolvedValue({ ...issued, emailed: true });
 });
 
 describe("POST /api/refills/[id]/decision", () => {
@@ -130,7 +135,7 @@ describe("POST /api/refills/[id]/decision", () => {
     expect(mocks.issueTestLink).not.toHaveBeenCalled();
   });
 
-  it("approving issues a link, attaches it and emails the patient", async () => {
+  it("approving issues a link and emails it to the patient on file", async () => {
     setup();
     const res = await POST(body({ decision: "approve" }), ctx());
     expect(res.status).toBe(200);
@@ -138,48 +143,52 @@ describe("POST /api/refills/[id]/decision", () => {
     expect(json).toMatchObject({ ok: true, decision: "linked", emailed: true });
     expect(String(json.link)).toContain("/t/TOKEN123");
 
-    expect(mocks.issueTestLink).toHaveBeenCalledWith(
-      expect.objectContaining({ patientId: PATIENT, clinicianId: CLINICIAN, setting: "home" }),
+    expect(mocks.issueAndEmailTestLink).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: PATIENT, setting: "home", email: "p@example.test" }),
     );
-    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ to: "p@example.test" }));
+    // The issuer without the emailer is only for a patient with no address.
+    expect(mocks.issueTestLink).not.toHaveBeenCalled();
   });
 
-  it("does not put the challenge code in the email", async () => {
+  it("still reports the link when the email did not send", async () => {
     setup();
-    await POST(body({ decision: "approve" }), ctx());
-    const sent = mocks.send.mock.calls[0][0] as { text: string; subject: string };
-    // The code is shown on screen after Start; an emailed code would defeat the check.
-    expect(sent.text).not.toMatch(/\b[A-Z0-9]{4}\b(?!.*character)/);
-    expect(sent.text).toContain("/t/TOKEN123");
-  });
-
-  it("still returns the link when the email fails", async () => {
-    setup();
-    mocks.send.mockResolvedValue({ ok: false, reason: "email_not_configured" });
+    mocks.issueAndEmailTestLink.mockResolvedValue({
+      ok: true,
+      requestId: REQUEST_ID,
+      link: "http://localhost/t/TOKEN123",
+      expiresAt: "2026-09-28T00:00:00.000Z",
+      emailed: false,
+    });
     const res = await POST(body({ decision: "approve" }), ctx());
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.emailed).toBe(false);
     expect(String(json.link)).toContain("/t/TOKEN123");
   });
 
-  it("skips email when the patient has no address, and still succeeds", async () => {
+  it("issues without emailing when the patient has no address", async () => {
     setup({ contactEmail: null });
     const res = await POST(body({ decision: "approve" }), ctx());
     expect((await res.json() as Record<string, unknown>).emailed).toBe(false);
-    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.issueAndEmailTestLink).not.toHaveBeenCalled();
+    expect(mocks.issueTestLink).toHaveBeenCalled();
   });
 
-  it("refuses a home link for a patient not cleared for home testing", async () => {
-    setup({ homeAllowed: false });
+  it("passes a home-testing refusal straight through from the issuer", async () => {
+    setup();
+    mocks.issueAndEmailTestLink.mockResolvedValue({
+      ok: false,
+      status: 409,
+      error: "home_testing_not_allowed",
+      extra: { reason: "pre_treatment" },
+    });
     const res = await POST(body({ decision: "approve", setting: "home" }), ctx());
     expect(res.status).toBe(409);
-    expect(mocks.issueTestLink).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: "home_testing_not_allowed", reason: "pre_treatment" });
   });
 
-  it("500 and no email when the link could not be issued", async () => {
+  it("500 when the link could not be issued", async () => {
     setup();
-    mocks.issueTestLink.mockResolvedValue({ ok: false, error: "issue_failed" });
+    mocks.issueAndEmailTestLink.mockResolvedValue({ ok: false, status: 500, error: "issue_failed" });
     expect((await POST(body({ decision: "approve" }), ctx())).status).toBe(500);
-    expect(mocks.send).not.toHaveBeenCalled();
   });
 });

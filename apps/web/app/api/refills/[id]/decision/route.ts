@@ -17,15 +17,12 @@ import { z } from "zod";
 
 import { appendAuditEvent } from "@/lib/audit/append";
 import { getClinician } from "@/lib/clinic/auth";
-import { issueTestLink } from "@/lib/clinic/issue-link";
-import { homeRefusal } from "@/lib/fraud/home-guards";
-import { send } from "@/lib/integrations/email";
+import { issueAndEmailTestLink } from "@/lib/requests/email-link";
+import { issueTestLink, linkOrigin } from "@/lib/requests/issue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-const PRODUCTION_ORIGIN = "https://pledgecheck.tech";
 
 const idSchema = z.guid();
 const bodySchema = z.discriminatedUnion("decision", [
@@ -42,10 +39,6 @@ const bodySchema = z.discriminatedUnion("decision", [
 
 function fail(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ error, ...extra }, { status });
-}
-
-function linkOrigin(request: Request): string {
-  return process.env.NODE_ENV === "production" ? PRODUCTION_ORIGIN : new URL(request.url).origin;
 }
 
 export async function POST(request: Request, ctx: RouteContext<"/api/refills/[id]/decision">) {
@@ -115,20 +108,25 @@ export async function POST(request: Request, ctx: RouteContext<"/api/refills/[id
     return NextResponse.json({ ok: true, decision: "declined" });
   }
 
-  // Approve. The same home-testing guard as POST /api/requests: a refill request cannot
-  // be used to route around a patient who is not cleared to test at home.
-  if (body.setting === "home") {
-    const refusal = homeRefusal(patient);
-    if (refusal) return fail(409, "home_testing_not_allowed", { reason: refusal });
-  }
-
-  const issued = await issueTestLink({
+  // Approve. Nihalika's issuer does the patient lookup, the practice check and the
+  // home-testing guard itself, so this route does not repeat them; a patient who is not
+  // cleared to test at home is refused here exactly as they are on POST /api/requests.
+  //
+  // With an address on file the link is emailed; without one it is still issued and
+  // returned, so the clinician can read it out or show the QR code.
+  const origin = linkOrigin(request);
+  const common = {
+    supabase,
+    clinician,
     patientId: patient.id,
     setting: body.setting,
-    clinicianId: clinician.id,
-    auditPayload: { via: "refill_request" },
-  });
-  if (!issued.ok) return fail(500, issued.error);
+    origin,
+  };
+  const issued = patient.contact_email
+    ? await issueAndEmailTestLink({ ...common, email: patient.contact_email })
+    : { ...(await issueTestLink(common)), emailed: false as const };
+
+  if (!issued.ok) return fail(issued.status, issued.error, issued.extra);
 
   const { error: updateError } = await admin
     .from("refill_requests")
@@ -159,26 +157,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/refills/[id
     });
   }
 
-  const link = `${linkOrigin(request)}/t/${issued.token}`;
-
-  // Email is best effort. If it fails the clinician still has the link on screen to hand
-  // over, which is why the link is returned either way.
-  let emailed = false;
-  if (patient.contact_email) {
-    const result = await send({
-      to: patient.contact_email,
-      subject: "Your PledgeCheck test link",
-      text:
-        `Your clinic has asked you to take your pregnancy test.\n\n` +
-        `Open this link on your phone to start. It can only be used once:\n${link}\n\n` +
-        `You will see a 4-character code on screen to write on the test.\n\n` +
-        `If you did not expect this, contact your clinic.`,
-    });
-    emailed = result.ok;
-  }
-
   return NextResponse.json(
-    { ok: true, decision: "linked", link, expiresAt: issued.expiresAt, emailed },
+    { ok: true, decision: "linked", link: issued.link, expiresAt: issued.expiresAt, emailed: issued.emailed },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
