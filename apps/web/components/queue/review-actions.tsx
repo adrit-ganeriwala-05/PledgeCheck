@@ -5,6 +5,7 @@ import { useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { submitReview as apiSubmitReview } from "@/lib/api/client";
 import { REASON_MAX_LENGTH } from "@/lib/clinic/review";
 
 export type ReviewOutcome =
@@ -24,18 +25,9 @@ type Props = {
 };
 
 export async function submitReview(submissionId: string, decision: "approved" | "rejected", reason?: string): Promise<ReviewOutcome> {
-  try {
-    const res = await fetch("/api/reviews", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ submissionId, decision, reason }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (res.ok) return { ok: true, status: body.status, window: body.window ?? null };
-    return { ok: false, error: body.error ?? `http_${res.status}`, reviewRecorded: body.reviewRecorded === true };
-  } catch {
-    return { ok: false, error: "network_error", reviewRecorded: false };
-  }
+  const result = await apiSubmitReview(submissionId, decision, reason);
+  if (result.ok) return { ok: true, status: result.data.status, window: result.data.window };
+  return { ok: false, error: result.error.code, reviewRecorded: result.reviewRecorded === true };
 }
 
 // Approve is one tap (no confirmation) so a clear case takes seconds; Reject asks for a reason.

@@ -9,7 +9,12 @@
 // The challenge code is not on the page until the patient taps Start: that calls
 // POST /api/t/:token/start, which begins the session (SESSION_MINUTES) and returns the
 // code and deadline. Reopening the link mid-session calls it again and gets the same
-// code back. A countdown shows the time left; at zero the session is over.
+// code back. A countdown shows the time left; at zero the session is over. When the start
+// response also carries codeExpiresAt (PRD R13), the countdown runs to whichever is sooner.
+//
+// v3 (PRD R7): the link only works for the signed-in patient it was issued to. A signed-out
+// patient signs in right here (the link never travels through a login URL), and a different
+// account gets its own screen with a sign-out button.
 //
 // 3D: the test model appears only on the Welcome and "how to photograph" steps, before Start,
 // so it never shows the code. It is unmounted when the patient moves on, and the camera waits
@@ -20,8 +25,10 @@ import { m } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Wordmark } from "@/components/brand/wordmark";
+import { PatientSignInForm } from "@/components/portal/patient-sign-in-form";
 import { testModelsReleased } from "@/components/test-model/release";
 import { TestModel } from "@/components/test-model/test-model";
+import { patientSignOut, startTestSession, submitTestPhoto } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
   clipPath,
@@ -39,7 +46,7 @@ import { PATIENT_COPY, STEP_COUNT } from "./copy";
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.85;
 
-type Phase = "intro" | "how" | "code" | "camera" | "review" | "sending" | "sent" | "failed";
+type Phase = "intro" | "how" | "code" | "camera" | "review" | "sending" | "sent" | "failed" | "signin" | "wrong_patient";
 
 const PHASE_STEP: Partial<Record<Phase, CaptureStep>> = {
   intro: "welcome",
@@ -60,7 +67,15 @@ export function formatRemaining(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-const START_FAILURES: LinkProblemState[] = ["invalid", "link_expired", "session_expired", "submitted"];
+const START_FAILURES: LinkProblemState[] = [
+  "invalid",
+  "link_expired",
+  "session_expired",
+  "submitted",
+  "invalidated",
+  "expired",
+  "already_used",
+];
 
 /** Phases that end when the session runs out. */
 const SESSION_PHASES: Phase[] = ["code", "camera", "review"];
@@ -90,7 +105,9 @@ export function CaptureFlow({
   const [terminal, setTerminal] = useState(false);
   // What "Try again" repeats: starting the session, or sending the photo.
   const [failedStep, setFailedStep] = useState<"start" | "send">("send");
-  const [session, setSession] = useState<{ code: string; endsAt: number } | null>(null);
+  // endsAt is the sooner of the session end and the code expiry; `expiry` says which.
+  const [session, setSession] = useState<{ code: string; endsAt: number; expiry: "session" | "code" } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [starting, setStarting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -156,7 +173,7 @@ export function CaptureFlow({
       if (current >= session.endsAt && SESSION_PHASES.includes(phaseRef.current)) {
         clearInterval(timer);
         stopCamera();
-        setFailure(LINK_PROBLEM_TEXT[language].session_expired);
+        setFailure(LINK_PROBLEM_TEXT[language][session.expiry === "code" ? "code_expired" : "session_expired"]);
         setTerminal(true);
         setPhase("failed");
       }
@@ -167,34 +184,47 @@ export function CaptureFlow({
   const startSession = useCallback(async () => {
     setStarting(true);
     setFailure(null);
-    try {
-      const response = await fetch(`/api/t/${encodeURIComponent(token)}/start`, { method: "POST" });
-      const data = (await response.json()) as {
-        ok?: boolean;
-        state?: string;
-        challengeCode?: string;
-        sessionEndsAt?: string;
-      };
-      if (!response.ok || !data.ok || !data.challengeCode || !data.sessionEndsAt) {
-        const state = START_FAILURES.find((s) => s === data.state) ?? "error";
-        setFailure(LINK_PROBLEM_TEXT[language][state]);
-        setTerminal(state !== "error");
-        setFailedStep("start");
-        setPhase("failed");
-        return;
-      }
+    const result = await startTestSession(token);
+    setStarting(false);
+    if (result.ok) {
+      const sessionEnd = Date.parse(result.data.sessionEndsAt);
+      const codeEnd = result.data.codeExpiresAt ? Date.parse(result.data.codeExpiresAt) : Number.POSITIVE_INFINITY;
       setNow(Date.now());
-      setSession({ code: data.challengeCode, endsAt: Date.parse(data.sessionEndsAt) });
+      setSession({
+        code: result.data.challengeCode,
+        endsAt: Math.min(sessionEnd, codeEnd),
+        expiry: codeEnd < sessionEnd ? "code" : "session",
+      });
       setPhase("code");
-    } catch {
+      return;
+    }
+    const code = result.error.code;
+    if (code === "not_logged_in") {
+      setPhase("signin");
+      return;
+    }
+    if (code === "wrong_patient") {
+      setPhase("wrong_patient");
+      return;
+    }
+    if (code === "network_error") {
       setFailure(t.startFailed);
       setTerminal(false);
-      setFailedStep("start");
-      setPhase("failed");
-    } finally {
-      setStarting(false);
+    } else {
+      const state = START_FAILURES.find((s) => s === code) ?? "error";
+      setFailure(LINK_PROBLEM_TEXT[language][state]);
+      setTerminal(state !== "error");
     }
+    setFailedStep("start");
+    setPhase("failed");
   }, [token, language, t.startFailed]);
+
+  const signOut = useCallback(async () => {
+    setSigningOut(true);
+    await patientSignOut();
+    setSigningOut(false);
+    setPhase("signin");
+  }, []);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
@@ -257,32 +287,24 @@ export function CaptureFlow({
     setPhase("sending");
     setFailure(null);
 
-    const body = new FormData();
-    body.append("token", token);
-    body.append("image", photo.blob, "test.jpg");
-
-    try {
-      const response = await fetch("/api/submissions", { method: "POST", body });
-      const data = (await response.json()) as { received?: boolean; reason?: string };
-
-      if (!response.ok || data.received === false) {
-        setFailure(patientMessage(data.reason, language));
-        setTerminal(isTerminalReason(data.reason));
-        setFailedStep("send");
-        setPhase("failed");
-        return;
-      }
+    const result = await submitTestPhoto(token, photo.blob);
+    if (result.ok) {
       setPhase("sent");
-    } catch {
+      return;
+    }
+    if (result.error.code === "network_error") {
       setFailure(
         language === "es"
           ? "No se pudo enviar. Revise su conexión."
           : "Could not send. Check your connection.",
       );
       setTerminal(false);
-      setFailedStep("send");
-      setPhase("failed");
+    } else {
+      setFailure(patientMessage(result.error.code, language));
+      setTerminal(isTerminalReason(result.error.code));
     }
+    setFailedStep("send");
+    setPhase("failed");
   }, [photo, token, language]);
 
   const step = STEP_NUMBER[phase];
@@ -428,6 +450,23 @@ export function CaptureFlow({
 
         {phase === "sent" && <Sent title={t.sentTitle} body={c.sentBody} />}
 
+        {phase === "signin" && (
+          <div className="flex flex-1 flex-col gap-5">
+            <div className="space-y-2">
+              <h1 className="text-[1.75rem] leading-tight font-semibold">{c.signInTitle}</h1>
+              <p className="text-base leading-relaxed text-mist/90">{c.signInBody}</p>
+            </div>
+            <PatientSignInForm copy={c.form} showSignUpLink={false} onSignedIn={() => void startSession()} />
+          </div>
+        )}
+
+        {phase === "wrong_patient" && (
+          <div className="flex flex-1 flex-col justify-center gap-4 text-center">
+            <h1 className="text-2xl font-semibold">{c.wrongPatientTitle}</h1>
+            <p className="text-haze">{c.wrongPatientBody}</p>
+          </div>
+        )}
+
         {phase === "failed" && (
           <div className="flex flex-1 flex-col justify-center gap-4 text-center">
             <h1 className="text-2xl font-semibold">
@@ -440,6 +479,11 @@ export function CaptureFlow({
                 <img src={photo.url} alt="" className="mx-auto max-h-48 rounded-xl bg-black object-contain" />
                 <p className="text-sm text-haze">{c.photoKept}</p>
               </>
+            ) : null}
+            {terminal ? (
+              <a href="/portal" className="font-medium text-orchid-text underline">
+                {c.goToPortal}
+              </a>
             ) : null}
           </div>
         )}
@@ -482,6 +526,11 @@ export function CaptureFlow({
         )}
         {phase === "failed" && !terminal && (
           <PatientButton onClick={failedStep === "start" ? startSession : send}>{t.tryAgain}</PatientButton>
+        )}
+        {phase === "wrong_patient" && (
+          <PatientButton onClick={() => void signOut()} disabled={signingOut}>
+            {signingOut ? c.signingOut : c.signOut}
+          </PatientButton>
         )}
       </div>
     </div>

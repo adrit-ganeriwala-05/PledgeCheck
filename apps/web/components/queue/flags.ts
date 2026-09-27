@@ -3,14 +3,20 @@
 // render as their raw value with an "unknown" severity.
 //
 // Severity decides how a flag looks, never what the prescriber may do:
+//   clinical - a test line was seen, faint or clear: a possible positive (solid red, listed first)
 //   fraud    - a fraud check failed (red)
 //   degraded - a check or reader did not run, so the card is not a clean pass (amber)
 //   review   - worth a closer look (amber)
-export type FlagSeverity = "fraud" | "degraded" | "review";
+export type FlagSeverity = "clinical" | "fraud" | "degraded" | "review";
 
 type FlagInfo = { label: string; severity: FlagSeverity };
 
 export const FLAGS: Record<string, FlagInfo> = {
+  // Clinical safety (PRD v3): any visible test line, however faint, counts as positive.
+  faint_test_line: { label: "Faint test line: possible positive", severity: "clinical" },
+  test_line_present: { label: "Test line visible: possible positive", severity: "clinical" },
+  control_line_missing: { label: "No control line: test invalid", severity: "review" },
+  code_unreadable: { label: "Code unreadable", severity: "review" },
   // Reader outcomes.
   readers_disagree: { label: "Readers disagree", severity: "review" },
   low_confidence: { label: "Low confidence", severity: "review" },
@@ -38,6 +44,7 @@ export const FLAG_LABELS: Record<string, string> = Object.fromEntries(
 // the rest become labeled flags.
 const ENGINE_PASSED = [/^readers agree\b/, /^both readers above the confidence threshold$/, /^code matches$/];
 const ENGINE_FRAUD = [/^code missing or wrong\b/, /^home testing not permitted\b/];
+const ENGINE_CLINICAL = [/^positive result\b/];
 
 function isEngineReason(flag: string): boolean {
   return /\s/.test(flag);
@@ -62,11 +69,14 @@ export function flagLabel(flag: string): { label: string; known: boolean } {
 export function flagSeverity(flag: string): FlagSeverity | "unknown" {
   const known = FLAGS[flag]?.severity;
   if (known) return known;
-  if (isEngineReason(flag)) return ENGINE_FRAUD.some((re) => re.test(flag)) ? "fraud" : "review";
+  if (isEngineReason(flag)) {
+    if (ENGINE_CLINICAL.some((re) => re.test(flag))) return "clinical";
+    return ENGINE_FRAUD.some((re) => re.test(flag)) ? "fraud" : "review";
+  }
   return "unknown";
 }
 
-const SEVERITY_ORDER: Record<FlagSeverity | "unknown", number> = { fraud: 0, degraded: 1, review: 2, unknown: 3 };
+const SEVERITY_ORDER: Record<FlagSeverity | "unknown", number> = { clinical: 0, fraud: 1, degraded: 2, review: 3, unknown: 4 };
 
 /** The flags worth showing, most serious first; stable within a severity. Passed checks are left out. */
 export function sortFlags(flags: string[]): string[] {
@@ -92,4 +102,20 @@ export function degradedNotes(card: {
     notes.push("Photo-reuse check didn't run. This photo was not compared with earlier submissions.");
   }
   return notes;
+}
+
+/**
+ * The banner for a card where a test line was seen. A faint line is never shown as a clean or
+ * negative read, whatever the readers' overall result says.
+ */
+export function clinicalAlert(card: {
+  flags: string[];
+  grok: { testLine?: "none" | "faint" | "clear" | null };
+}): string | null {
+  const faint = card.grok.testLine === "faint" || card.flags.includes("faint_test_line");
+  if (faint) {
+    return "Faint test line detected. On most home tests any visible test line counts as positive: treat this as a possible positive.";
+  }
+  const line = card.grok.testLine === "clear" || card.flags.some((f) => flagSeverity(f) === "clinical");
+  return line ? "A test line was detected. Treat this as a possible positive and contact the patient before any fill." : null;
 }

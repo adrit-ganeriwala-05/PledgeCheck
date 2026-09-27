@@ -29,3 +29,6 @@ __pycache__/
 *.pem
 npm-debug.log*
 .pnpm-debug.log*
+
+# Playwright output (videos, traces, failure context)
+notes/transition-qa/test-results/

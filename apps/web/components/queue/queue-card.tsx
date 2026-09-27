@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDashedIcon, TriangleAlertIcon } from "lucide-react";
+import { CircleDashedIcon, SirenIcon, TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 
 import { describeAgreement } from "@/lib/clinic/format";
@@ -8,7 +8,7 @@ import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
 import { cn } from "@/lib/utils";
 
 import { FlagBadges } from "./flag-badges";
-import { degradedNotes, flagLabel, flagSeverity } from "./flags";
+import { clinicalAlert, degradedNotes, flagLabel, flagSeverity } from "./flags";
 import { PhotoViewer } from "./photo-viewer";
 import { ReadersPanel } from "./readers-panel";
 import { ReviewActions, type ReviewActionsHandle, type ReviewOutcome } from "./review-actions";
@@ -64,6 +64,7 @@ export function QueueCard({ card, onResolved, isNew = false }: Props) {
   }
 
   const needsReview = card.status === "needs_review";
+  const clinical = clinicalAlert(card);
   const degraded = degradedNotes(card);
   // The degraded banner already says which reader or check did not run; don't repeat it here.
   const readerMissing = card.grok.result === null || card.opencv.result === null;
@@ -88,14 +89,14 @@ export function QueueCard({ card, onResolved, isNew = false }: Props) {
       className={cn(
         "rounded-2xl border bg-surface p-4 text-mist transition-[box-shadow,border-color] duration-500 outline-none sm:p-5",
         "focus-visible:border-orchid focus-visible:shadow-[0_0_0_3px_color-mix(in_oklch,var(--orchid)_45%,transparent)]",
-        needsReview ? "border-warn/50" : "border-line",
+        clinical ? "border-stop/70" : needsReview ? "border-warn/50" : "border-line",
         isNew && "shadow-[0_0_0_1px_var(--orchid),0_0_40px_-8px_color-mix(in_oklch,var(--orchid)_60%,transparent)]",
       )}
     >
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            {needsReview ? null : (
+            {needsReview || clinical ? null : (
               <p className="inline-flex items-center gap-1.5 text-sm font-medium text-haze">
                 <span className="size-1.5 rounded-full bg-haze" aria-hidden />
                 Ready for review
@@ -114,6 +115,17 @@ export function QueueCard({ card, onResolved, isNew = false }: Props) {
         </div>
         <WindowCountdown window={card.window} capturedAt={card.capturedAt} />
       </header>
+
+      {clinical ? (
+        <p
+          role="alert"
+          data-clinical
+          className="mt-3 flex items-start gap-2 rounded-xl border border-stop bg-stop/15 px-3 py-2.5 text-sm font-semibold text-mist"
+        >
+          <SirenIcon className="mt-0.5 size-4 shrink-0 text-stop" aria-hidden />
+          <span>{clinical}</span>
+        </p>
+      ) : null}
 
       {needsReview || degraded.length > 0 ? (
         <div className="mt-3 space-y-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2.5 text-mist">

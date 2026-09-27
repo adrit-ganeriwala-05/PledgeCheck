@@ -1,6 +1,7 @@
 // Patient-facing copy for the redesigned capture flow, in both languages. Calm, plain and
 // second person. Never mentions results, readers or fraud checks: the app verifies, the
 // doctor decides.
+import type { SignInCopy } from "@/components/portal/patient-sign-in-form";
 import type { Language } from "@/lib/voice";
 
 export const STEP_COUNT = 4;
@@ -34,7 +35,16 @@ type Copy = {
   photoKept: string;
   startProblemTitle: string;
   openingCamera: string;
+  signInTitle: string;
+  signInBody: string;
+  wrongPatientTitle: string;
+  wrongPatientBody: string;
+  signOut: string;
+  signingOut: string;
+  goToPortal: string;
+  form: SignInCopy;
 };
+
 
 export const PATIENT_COPY: Record<Language, Copy> = {
   en: {
@@ -76,6 +86,22 @@ export const PATIENT_COPY: Record<Language, Copy> = {
     photoKept: "Your photo is still here. Tap Try again when you have a connection.",
     startProblemTitle: "Couldn't start",
     openingCamera: "Opening camera…",
+    signInTitle: "Sign in to start your test",
+    signInBody: "This link only works for the PledgeCheck account it was sent to. Sign in, and your test starts right here.",
+    wrongPatientTitle: "This link belongs to a different account",
+    wrongPatientBody:
+      "You're signed in to a different PledgeCheck account. Sign out, then sign in with the account your clinic sent this link to.",
+    signOut: "Sign out",
+    signingOut: "Signing out…",
+    goToPortal: "Go to your portal",
+    form: {
+      email: "Email",
+      password: "Password",
+      submit: "Sign in",
+      submitting: "Signing in…",
+      badCredentials: "Email or password is incorrect.",
+      unreachable: "Could not reach the sign-in service. Check your connection and try again.",
+    },
   },
   es: {
     welcomeTitle: "Su prueba mensual, desde casa",
@@ -116,5 +142,22 @@ export const PATIENT_COPY: Record<Language, Copy> = {
     photoKept: "Su foto sigue aquí. Toque Intentar de nuevo cuando tenga conexión.",
     startProblemTitle: "No se pudo comenzar",
     openingCamera: "Abriendo la cámara…",
+    signInTitle: "Inicie sesión para comenzar su prueba",
+    signInBody:
+      "Este enlace solo funciona con la cuenta de PledgeCheck a la que se envió. Inicie sesión y su prueba comenzará aquí mismo.",
+    wrongPatientTitle: "Este enlace pertenece a otra cuenta",
+    wrongPatientBody:
+      "Inició sesión con otra cuenta de PledgeCheck. Cierre sesión y luego inicie sesión con la cuenta a la que su clínica envió este enlace.",
+    signOut: "Cerrar sesión",
+    signingOut: "Cerrando sesión…",
+    goToPortal: "Ir a su portal",
+    form: {
+      email: "Correo electrónico",
+      password: "Contraseña",
+      submit: "Iniciar sesión",
+      submitting: "Iniciando sesión…",
+      badCredentials: "El correo o la contraseña no son correctos.",
+      unreachable: "No se pudo conectar con el servicio de inicio de sesión. Revise su conexión e inténtelo de nuevo.",
+    },
   },
 };

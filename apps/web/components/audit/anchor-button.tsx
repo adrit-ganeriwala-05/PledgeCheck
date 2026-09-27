@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { anchorAuditHead } from "@/lib/api/client";
 
 import { anchorErrorMessage, NETWORK_ERROR } from "./format";
 import type { AnchorResponse } from "./types";
@@ -20,20 +21,18 @@ export function AnchorNowButton({ onAnchored }: { onAnchored?: (anchor: AnchorRe
   async function anchor() {
     setPending(true);
     setOutcome(null);
-    try {
-      const res = await fetch("/api/anchors", { method: "POST" });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        setOutcome({ kind: "error", message: anchorErrorMessage(res.status, body), explorerUrl: body?.explorerUrl });
-        return;
-      }
-      setOutcome({ kind: "done", anchor: body as AnchorResponse });
-      onAnchored?.(body as AnchorResponse);
-    } catch {
-      setOutcome({ kind: "error", message: NETWORK_ERROR });
-    } finally {
-      setPending(false);
+    const result = await anchorAuditHead();
+    setPending(false);
+    if (!result.ok) {
+      setOutcome({
+        kind: "error",
+        message: result.error.code === "network_error" ? NETWORK_ERROR : anchorErrorMessage(result.error.status, { error: result.error.code }),
+        explorerUrl: result.explorerUrl,
+      });
+      return;
     }
+    setOutcome({ kind: "done", anchor: result.data });
+    onAnchored?.(result.data);
   }
 
   return (

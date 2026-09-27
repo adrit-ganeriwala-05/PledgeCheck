@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { verifyAudit } from "@/lib/api/client";
 
 import { AnchorNowButton } from "./anchor-button";
 import { AnchorsList } from "./anchors-list";
@@ -44,21 +45,20 @@ export function AuditScreen({
 
   async function runVerify() {
     setVerify({ kind: "pending" });
-    try {
-      const res = await fetch("/api/audit/verify", { cache: "no-store" });
-      if (!res.ok) {
-        setVerify({ kind: "error", message: verifyErrorMessage(res.status) });
-        return;
-      }
-      const result = (await res.json()) as VerifyResponse;
-      setVerify({ kind: "done", result });
-      const seq = brokenSeqOf(result);
-      setHighlight(seq);
-      if (seq !== null && !chain.rows.some((r) => r.seq === seq)) {
-        router.push(`/audit?seq=${seq}`, { scroll: false });
-      }
-    } catch {
-      setVerify({ kind: "error", message: NETWORK_ERROR });
+    const response = await verifyAudit();
+    if (!response.ok) {
+      setVerify({
+        kind: "error",
+        message: response.error.code === "network_error" ? NETWORK_ERROR : verifyErrorMessage(response.error.status),
+      });
+      return;
+    }
+    const result = response.data;
+    setVerify({ kind: "done", result });
+    const seq = brokenSeqOf(result);
+    setHighlight(seq);
+    if (seq !== null && !chain.rows.some((r) => r.seq === seq)) {
+      router.push(`/audit?seq=${seq}`, { scroll: false });
     }
   }
 

@@ -1,19 +1,30 @@
-// /patients — the practice's patients, home-testing switch and link issuing. Owner: Nihalika (N6).
+// /patients — the practice's patients, home-testing switch, portal enrollment and link issuing.
+// Owner: Nihalika (N6).
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { destinationFor } from "@/app/login/destination";
+import { isMocked } from "@/lib/api/mode";
 import { getClinician } from "@/lib/clinic/auth";
 import { createClient } from "@/lib/supabase/server";
 
 import { loadPatients, type PatientRow } from "./load";
+import { MockPatients } from "./mock-patients";
 import { PatientsTable } from "./patients-table";
 
 export const metadata: Metadata = { title: "Patients · PledgeCheck" };
 export const dynamic = "force-dynamic";
 
 export default async function PatientsPage() {
+  if (isMocked("patientsPage")) {
+    return (
+      <PatientsShell>
+        <MockPatients />
+      </PatientsShell>
+    );
+  }
+
   const supabase = await createClient();
   const auth = await getClinician(supabase);
   if (!auth.ok) redirect(destinationFor(auth));
@@ -26,13 +37,7 @@ export default async function PatientsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:py-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold sm:text-4xl">Patients</h1>
-        <p className="max-w-2xl text-sm text-haze">
-          Issue a one-time test link. The challenge code stays hidden until the patient taps Start.
-        </p>
-      </header>
+    <PatientsShell>
       {patients ? (
         <PatientsTable patients={patients} />
       ) : (
@@ -43,6 +48,21 @@ export default async function PatientsPage() {
           </Link>
         </div>
       )}
+    </PatientsShell>
+  );
+}
+
+function PatientsShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:py-10">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Patients</h1>
+        <p className="max-w-2xl text-sm text-haze">
+          Give each patient a portal enrollment code once, so they can request refills themselves. You can still issue a
+          one-time test link here; the challenge code stays hidden until the patient taps Start.
+        </p>
+      </header>
+      {children}
     </main>
   );
 }

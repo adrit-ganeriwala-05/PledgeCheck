@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/clinic/format";
-import type { QueueCard as QueueCardData, QueueResponse } from "@/lib/clinic/queue";
+import { getQueue } from "@/lib/api/client";
+import type { QueueCard as QueueCardData } from "@/lib/clinic/queue";
 
 import { QueueCard } from "./queue-card";
 import type { ReviewOutcome } from "./review-actions";
@@ -91,16 +92,17 @@ export function QueueBoard() {
     if (inFlight.current) return;
     inFlight.current = true;
     try {
-      const res = await fetch("/api/queue", { cache: "no-store" });
-      if (!res.ok) {
+      const result = await getQueue();
+      if (!result.ok) {
+        const { code, status } = result.error;
         setState((s) =>
-          mode === "background" && s.kind === "ready" && res.status >= 500
+          mode === "background" && s.kind === "ready" && (code === "network_error" || status >= 500)
             ? { ...s, refreshFailed: true }
-            : { kind: "error", status: res.status },
+            : { kind: "error", status },
         );
         return;
       }
-      const body = (await res.json()) as QueueResponse;
+      const body = result.data;
       const arrived = seen.current ? body.cards.filter((c) => !seen.current!.has(c.submissionId)).map((c) => c.submissionId) : [];
       seen.current = new Set([...(seen.current ?? []), ...body.cards.map((c) => c.submissionId)]);
       if (arrived.length > 0) {
@@ -119,15 +121,12 @@ export function QueueBoard() {
         cards: stabilizePhotoUrls(body.cards, photoUrls.current, Date.now()),
         refreshFailed: false,
       });
-    } catch {
-      setState((s) => (mode === "background" && s.kind === "ready" ? { ...s, refreshFailed: true } : { kind: "error", status: 0 }));
     } finally {
       inFlight.current = false;
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
     void load("initial");
     const refresh = () => void load("background");
     const timer = setInterval(() => {
@@ -281,8 +280,9 @@ export function QueueBoard() {
           <div className="rounded-2xl border border-dashed border-line px-6 py-14 text-center">
             <p className="font-display text-xl font-semibold text-mist">No tests waiting for review</p>
             <p className="mt-2 text-sm text-haze">
-              Issue a link from <Link className="text-orchid-text underline" href="/patients">Patients</Link>. When the
-              patient sends their photo, the test appears here within seconds.
+              Approve a refill in <Link className="text-orchid-text underline" href="/requests">Requests</Link> or issue a
+              link from <Link className="text-orchid-text underline" href="/patients">Patients</Link>. When the patient
+              sends their photo, the test appears here within seconds.
             </p>
           </div>
         ) : (

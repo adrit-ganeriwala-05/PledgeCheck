@@ -50,7 +50,7 @@ export function Studio({
   );
 }
 
-function AcrylicFloor() {
+export function AcrylicFloor() {
   const alpha = useMemo(() => {
     const size = 256;
     const el = document.createElement("canvas");

@@ -15,6 +15,12 @@ export type QueueCard = {
     // Whether Grok's read code equals the challenge code issued with the link (null when
     // Grok read no code). Display only; the fraud check itself is Nihalika's.
     codeMatches: boolean | null;
+    // v3 reader fields (PRD R8). Optional until the pipeline stores them; absent means
+    // "not reported", never "none".
+    controlLine?: boolean | null;
+    testLine?: "none" | "faint" | "clear" | null;
+    /** The issued code, if the backend chooses to show it to clinicians after submission. */
+    expectedCode?: string | null;
   };
   opencv: { result: string | null; confidence: number | null };
   readersAgree: boolean;

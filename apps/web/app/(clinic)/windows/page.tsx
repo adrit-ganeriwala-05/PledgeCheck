@@ -1,16 +1,28 @@
 // Windows screen at /windows. Owner: Labib (ticket L5).
 //
 // Clinic staff look at this to see whose 7-day pickup window is closing.
-// "Mark filled" stands in for the pharmacy feed in the demo.
+// "Mark picked up" stands in for the pharmacy feed in the demo. Missed windows are read from
+// the database (status = missed) and, until the backend's daily sweep writes that status,
+// also derived here when closes_at has passed.
 
+import { isMocked } from "@/lib/api/mode";
 import { getClinician } from "@/lib/clinic/auth";
 import { createClient } from "@/lib/supabase/server";
 
+import { MockWindows } from "./mock-windows";
 import { WindowList, type WindowRow } from "./window-list";
 
 export const dynamic = "force-dynamic";
 
 export default async function WindowsPage() {
+  if (isMocked("windowsPage")) {
+    return (
+      <Shell>
+        <MockWindows />
+      </Shell>
+    );
+  }
+
   // User-scoped: windows_select in db/policies.sql limits rows to this clinician's practice.
   const db = await createClient();
   const auth = await getClinician(db);
@@ -80,10 +92,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-10">
       <header className="mb-6 space-y-2">
-        <h1 className="text-3xl font-semibold sm:text-4xl">Fill windows</h1>
+        <h1 className="text-3xl font-semibold sm:text-4xl">Pickup windows</h1>
         <p className="max-w-2xl text-sm text-haze">
-          Sorted by time left. A first prescription that misses its window needs a repeat
-          test in a medical setting, with no waiting period.
+          Sorted by time left. Mark a prescription picked up to close the patient&apos;s cycle. A first
+          prescription that misses its window needs a repeat test in a medical setting, with no waiting period.
         </p>
       </header>
       {children}

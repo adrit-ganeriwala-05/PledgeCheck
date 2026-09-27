@@ -5,6 +5,10 @@
 /* The whole product is dark. The root <html> carries .dark so shadcn's dark: variants apply. */
 @custom-variant dark (&:is(.dark *));
 
+/* The entry pages' two layouts. Same query as WIDE_QUERY in components/entry/poses.ts, so the DOM and
+   the 3D camera always agree: card on the right with the model left, or the model above the card. */
+@custom-variant wide (@media (min-width: 900px) and (min-aspect-ratio: 7/5));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -185,6 +189,31 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Autofill keeps the dark field: no yellow or white fill, the text stays mist. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--mist);
+  caret-color: var(--mist);
+  box-shadow: 0 0 0 1000px var(--ink) inset;
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+input:autofill {
+  background-color: var(--ink);
+}
+
+/* First paint of a sign-in page: the card rises in without waiting for JavaScript. Later arrivals are
+   animated by Motion (components/entry/entry-shell.tsx). */
+@keyframes entry-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+.entry-rise {
+  animation: entry-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
 }
 
 /* The capture page is used one-handed, outdoors, on a phone. */

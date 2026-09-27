@@ -4,6 +4,7 @@ import { CheckIcon, ClockIcon, FingerprintIcon, ImagesIcon, KeyRoundIcon, Link2I
 import Link from "next/link";
 
 import { Wordmark } from "@/components/brand/wordmark";
+import { EntryLink } from "@/components/entry/entry-link";
 import { Button } from "@/components/ui/button";
 
 export function Problem() {
@@ -239,9 +240,17 @@ export function Closing() {
         <h2 id="closing-title" className="max-w-xl text-4xl font-semibold sm:text-5xl">
           Run your practice&apos;s at-home testing on PledgeCheck.
         </h2>
-        <Button asChild variant="brand" size="lg" className="h-12 px-6 text-base">
-          <Link href="/login">Sign in as a clinician</Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild variant="brand" size="lg" className="h-12 px-6 text-base">
+            <EntryLink href="/login">Sign in as a clinician</EntryLink>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="h-12 px-6 text-base">
+            <EntryLink href="/portal/login">Patient sign in</EntryLink>
+          </Button>
+          <Button asChild variant="ghost" size="lg" className="h-12 px-5 text-base text-mist">
+            <EntryLink href="/portal/signup">Create a patient account</EntryLink>
+          </Button>
+        </div>
       </div>
     </section>
   );
@@ -273,8 +282,17 @@ export function LandingNav() {
           <a href="#trust" className="hidden rounded-md px-3 py-2 text-sm text-haze hover:text-mist sm:inline-block">
             Why it&apos;s trustworthy
           </a>
+          <Button asChild variant="ghost" size="sm" className="h-9 px-3 text-mist">
+            <EntryLink href="/portal/login" aria-label="Patient sign in">
+              <span className="sm:hidden">Patient</span>
+              <span className="hidden sm:inline">Patient sign in</span>
+            </EntryLink>
+          </Button>
           <Button asChild variant="outline" size="sm" className="h-9 px-3.5">
-            <Link href="/login">Sign in</Link>
+            <EntryLink href="/login" aria-label="Clinician sign in">
+              <span className="sm:hidden">Clinician</span>
+              <span className="hidden sm:inline">Clinician sign in</span>
+            </EntryLink>
           </Button>
         </div>
       </nav>

@@ -6,6 +6,7 @@ import { CheckCircle2Icon, ClockIcon, OctagonAlertIcon } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { markPickedUp } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 export interface WindowRow {
@@ -21,6 +22,14 @@ export interface WindowRow {
 
 const HOUR = 60 * 60 * 1000;
 
+export const PICKUP_ERRORS: Record<string, string> = {
+  not_open: "This window is no longer open, so pickup can't be recorded. The patient needs a repeat test.",
+  not_found: "This window no longer exists. Reload the page.",
+  unauthenticated: "Your session has expired. Sign in again.",
+  not_a_clinician: "This account can't record pickups.",
+  network_error: "Network error. Check your connection and try again.",
+};
+
 export function WindowList({ rows }: { rows: WindowRow[] }) {
   const [now, setNow] = useState(() => Date.now());
   const [filled, setFilled] = useState<Record<string, boolean>>({});
@@ -33,23 +42,19 @@ export function WindowList({ rows }: { rows: WindowRow[] }) {
     return () => clearInterval(id);
   }, []);
 
-  const markFilled = (id: string) => {
+  const markPickedUpNow = (id: string) => {
     startTransition(async () => {
-      try {
-        const response = await fetch("/api/windows/fill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ windowId: id }),
-        });
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { reason?: string };
-          setFailed((f) => ({ ...f, [id]: `Couldn't mark filled (${data.reason ?? `error ${response.status}`}). Try again.` }));
-          return;
-        }
+      const result = await markPickedUp(id);
+      if (result.ok) {
         setFilled((f) => ({ ...f, [id]: true }));
-      } catch {
-        setFailed((f) => ({ ...f, [id]: "Network error. Check your connection and try again." }));
+        setFailed((f) => {
+          const next = { ...f };
+          delete next[id];
+          return next;
+        });
+        return;
       }
+      setFailed((f) => ({ ...f, [id]: PICKUP_ERRORS[result.error.code] ?? "Couldn't mark it picked up. Try again." }));
     });
   };
 
@@ -57,15 +62,16 @@ export function WindowList({ rows }: { rows: WindowRow[] }) {
     return (
       <div className="rounded-2xl border border-dashed border-line px-6 py-14 text-center">
         <p className="font-display text-xl font-semibold text-mist">No open windows</p>
-        <p className="mt-2 text-sm text-haze">Approving a test opens a 7-day fill window automatically.</p>
+        <p className="mt-2 text-sm text-haze">Approving a test opens a 7-day pickup window automatically.</p>
       </div>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-3" aria-label="Fill windows">
+    <ul className="flex flex-col gap-3" aria-label="Pickup windows">
       {rows.map((row) => {
         const remaining = new Date(row.closesAt).getTime() - now;
+        // Recorded by the backend (status = missed), or derived here until the daily sweep exists.
         const missed = row.status === "missed" || remaining <= 0;
         const urgent = !missed && remaining < 24 * HOUR;
         const soon = !missed && !urgent && remaining < 72 * HOUR;
@@ -74,6 +80,7 @@ export function WindowList({ rows }: { rows: WindowRow[] }) {
         return (
           <li
             key={row.id}
+            data-status={isFilled ? "picked_up" : missed ? "missed" : "open"}
             className={cn(
               "flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-surface p-4 transition-opacity sm:p-5",
               isFilled ? "border-ok/30 opacity-70" : missed ? "border-stop/50" : urgent ? "border-stop/40" : soon ? "border-warn/45" : "border-line",
@@ -116,16 +123,27 @@ export function WindowList({ rows }: { rows: WindowRow[] }) {
                 ) : (
                   <ClockIcon className="size-4" aria-hidden />
                 )}
-                {isFilled ? "Filled" : missed ? "Window missed" : countdown(remaining)}
+                {isFilled ? "Picked up" : missed ? "Missed" : countdown(remaining)}
               </p>
 
               {!isFilled && !missed && (
-                <Button type="button" variant="outline" size="lg" disabled={pending} onClick={() => markFilled(row.id)}>
-                  Mark filled
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={pending}
+                  onClick={() => markPickedUpNow(row.id)}
+                  aria-label={`Mark picked up for ${row.pseudonym}`}
+                >
+                  Mark picked up
                 </Button>
               )}
 
-              {missed && !isFilled && <span className="text-sm text-stop">Repeat test in clinic</span>}
+              {missed && !isFilled && (
+                <span className="text-sm text-stop">
+                  {row.isFirstRx ? "Repeat test in clinic" : "Closed without pickup: contact the patient"}
+                </span>
+              )}
             </div>
           </li>
         );

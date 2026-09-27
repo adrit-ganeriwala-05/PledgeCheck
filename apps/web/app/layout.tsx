@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 
 import { MotionProvider } from "@/components/brand/motion-provider";
+import { MockBadge } from "@/components/dev/mock-badge";
+import { mockMode } from "@/lib/api/mode";
 
 import "./globals.css";
 
@@ -32,10 +34,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const mocks = mockMode();
   return (
     <html lang="en" className={`dark h-full antialiased ${display.variable} ${body.variable}`}>
       <body className="flex min-h-full flex-col">
         <MotionProvider>{children}</MotionProvider>
+        {mocks !== "off" ? <MockBadge mode={mocks} /> : null}
       </body>
     </html>
   );

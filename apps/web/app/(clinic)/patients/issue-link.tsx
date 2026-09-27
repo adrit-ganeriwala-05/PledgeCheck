@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { issueTestLink } from "@/lib/api/client";
 
 import { type IssuedLink, LinkDialog } from "./link-dialog";
 
@@ -32,23 +33,17 @@ export function IssueLink({ patientId, pseudonym }: { patientId: string; pseudon
   async function issue(setting: "home" | "clinic") {
     setPending(setting);
     setError(null);
-    try {
-      const res = await fetch("/api/requests", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ patientId, setting }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(issueErrorMessage(res.status, body));
-        return;
-      }
-      setIssued({ link: body.link, expiresAt: body.expiresAt, setting });
-    } catch {
-      setError(NETWORK_ERROR);
-    } finally {
-      setPending(null);
+    const result = await issueTestLink({ patientId, setting });
+    setPending(null);
+    if (result.ok) {
+      setIssued({ link: result.data.link, expiresAt: result.data.expiresAt, setting });
+      return;
     }
+    setError(
+      result.error.code === "network_error"
+        ? NETWORK_ERROR
+        : issueErrorMessage(result.error.status, { error: result.error.code, reason: result.refusal }),
+    );
   }
 
   return (

@@ -1,8 +1,10 @@
 "use client";
 
+import { EnrollmentCode } from "./enrollment-code";
 import type { PatientRow } from "./load";
 import { HomeTestingToggle } from "./home-testing-toggle";
 import { IssueLink } from "./issue-link";
+import { PortalStatusBadges, usePortalStatuses } from "./portal-status";
 
 const PHASE: Record<PatientRow["phase"], string> = {
   pre: "Pre-treatment",
@@ -20,13 +22,15 @@ export const STATE_LABEL: Record<NonNullable<PatientRow["latest"]>["state"], str
 };
 
 export function PatientsTable({ patients }: { patients: PatientRow[] }) {
+  const [portal, markEnrolled] = usePortalStatuses();
+
   if (patients.length === 0) {
     return <p className="rounded-2xl border border-dashed border-line p-10 text-center text-sm text-haze">No patients yet.</p>;
   }
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-      <table className="w-full min-w-[760px] text-left text-sm">
+      <table className="w-full min-w-245 text-left text-sm">
         <thead className="border-b border-line text-xs font-medium text-haze">
           <tr>
             <th scope="col" className="px-4 py-3 font-medium">Patient</th>
@@ -34,28 +38,42 @@ export function PatientsTable({ patients }: { patients: PatientRow[] }) {
             <th scope="col" className="px-4 py-3 font-medium">Language</th>
             <th scope="col" className="px-4 py-3 font-medium">Can get pregnant</th>
             <th scope="col" className="px-4 py-3 font-medium">Home testing</th>
+            <th scope="col" className="px-4 py-3 font-medium">Portal</th>
             <th scope="col" className="px-4 py-3 font-medium">Latest link</th>
             <th scope="col" className="px-4 py-3 font-medium">Issue link</th>
           </tr>
         </thead>
         <tbody>
-          {patients.map((p) => (
-            <tr key={p.id} className="border-b border-line align-middle transition-colors last:border-0 hover:bg-raised/50">
-              <th scope="row" className="px-4 py-3 font-semibold text-mist">{p.pseudonym}</th>
-              <td className="px-4 py-3 text-mist">{PHASE[p.phase]}</td>
-              <td className="px-4 py-3 text-mist">{p.language === "es" ? "Spanish" : "English"}</td>
-              <td className="px-4 py-3 text-mist">{p.canGetPregnant ? "Yes" : "No"}</td>
-              <td className="px-4 py-3">
-                <HomeTestingToggle patientId={p.id} pseudonym={p.pseudonym} initial={p.homeTestingAllowed} />
-              </td>
-              <td className="px-4 py-3 text-haze">
-                {p.latest ? `${STATE_LABEL[p.latest.state]} (${p.latest.setting})` : "No link yet"}
-              </td>
-              <td className="px-4 py-3">
-                <IssueLink patientId={p.id} pseudonym={p.pseudonym} />
-              </td>
-            </tr>
-          ))}
+          {patients.map((p) => {
+            const entry = portal.kind === "ready" ? portal.byPatient.get(p.id) : undefined;
+            // Offer a code unless we know the patient is already enrolled.
+            const offerCode = portal.kind !== "loading" && !entry?.enrolled && p.canGetPregnant;
+            return (
+              <tr key={p.id} className="border-b border-line align-middle transition-colors last:border-0 hover:bg-raised/50">
+                <th scope="row" className="px-4 py-3 font-semibold text-mist">{p.pseudonym}</th>
+                <td className="px-4 py-3 text-mist">{PHASE[p.phase]}</td>
+                <td className="px-4 py-3 text-mist">{p.language === "es" ? "Spanish" : "English"}</td>
+                <td className="px-4 py-3 text-mist">{p.canGetPregnant ? "Yes" : "No"}</td>
+                <td className="px-4 py-3">
+                  <HomeTestingToggle patientId={p.id} pseudonym={p.pseudonym} initial={p.homeTestingAllowed} />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-col items-start gap-2">
+                    <PortalStatusBadges state={portal} entry={entry} />
+                    {offerCode ? (
+                      <EnrollmentCode patientId={p.id} pseudonym={p.pseudonym} onAlreadyEnrolled={() => markEnrolled(p.id)} />
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-haze">
+                  {p.latest ? `${STATE_LABEL[p.latest.state]} (${p.latest.setting})` : "No link yet"}
+                </td>
+                <td className="px-4 py-3">
+                  <IssueLink patientId={p.id} pseudonym={p.pseudonym} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

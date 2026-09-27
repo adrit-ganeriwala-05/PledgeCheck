@@ -1,10 +1,11 @@
-import { CircleDashedIcon, CircleHelpIcon, OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
+import { CircleDashedIcon, CircleHelpIcon, OctagonAlertIcon, SirenIcon, TriangleAlertIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 import { flagLabel, flagSeverity, sortFlags } from "./flags";
 
 const SEVERITY_STYLE = {
+  clinical: { icon: SirenIcon, className: "border-stop bg-stop font-semibold text-black", hint: "High, clinical" },
   fraud: { icon: OctagonAlertIcon, className: "border-stop/50 bg-stop/10 text-stop", hint: "Fraud check" },
   degraded: { icon: CircleDashedIcon, className: "border-warn/45 bg-warn/10 text-warn", hint: "Check did not run" },
   review: { icon: TriangleAlertIcon, className: "border-warn/35 bg-transparent text-warn", hint: "Review" },
